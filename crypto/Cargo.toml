@@ -5,7 +5,9 @@ authors = ["David Craven <david@craven.ch>"]
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0.32"
 async-std = { version = "1.6.2", features = ["unstable"] }
+async-trait = "0.1.36"
 bip39 = "1.0.0-rc1"
 blake2-rfc = "0.2.18"
 generic-array = "0.14.3"
@@ -19,3 +21,9 @@ substrate-subxt = "0.11.0"
 thiserror = "1.0.20"
 zeroize = "1.1.0"
 sp-core = "2.0.0-rc5"
+x25519-dalek = "0.6.0"
+
+sp-keyring = { version = "2.0.0-rc5", optional = true }
+
+[features]
+mock = ["sp-keyring"]

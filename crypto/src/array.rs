@@ -1,8 +1,9 @@
 use crate::cipher::CipherText;
-use crate::error::NotEnoughEntropyError;
+use crate::error::{InvalidSuri, NotEnoughEntropyError, UnsupportedJunction};
 use crate::rand::random;
 use generic_array::{ArrayLength, GenericArray};
 use secrecy::{ExposeSecret, SecretString};
+use sp_core::{DeriveJunction, Pair};
 use std::fmt::Debug;
 use strobe_rs::{SecParam, Strobe};
 use zeroize::Zeroize;
@@ -59,6 +60,32 @@ impl<S: Size> CryptoArray<S> {
         }
         res.copy_from_slice(&entropy[..res.len()]);
         Ok(res)
+    }
+
+    pub fn from_suri<P: Pair>(suri: &str) -> Result<Self, InvalidSuri>
+    where
+        P::Seed: Into<GenericArray<u8, S>>
+    {
+        let (_, seed) = P::from_string_with_seed(suri, None).map_err(InvalidSuri)?;
+        Ok(Self::new(seed.unwrap().into()))
+    }
+
+    pub fn to_pair<P: Pair>(&self) -> P
+    where
+        P::Seed: From<GenericArray<u8, S>>,
+    {
+        P::from_seed(&P::Seed::from(self.0.clone()))
+    }
+
+    pub fn derive<P: Pair>(&self, junction: DeriveJunction) -> Result<Self, UnsupportedJunction>
+    where
+        P::Seed: From<GenericArray<u8, S>> + Into<GenericArray<u8, S>>,
+    {
+        let seed = P::Seed::from(self.0.clone());
+        let pair: P = self.to_pair();
+        let (_, seed) = pair.derive(std::iter::once(junction), Some(seed))
+            .map_err(|_| UnsupportedJunction)?;
+        Ok(Self::new(seed.unwrap().into()))
     }
 
     pub fn copy_from_slice(&mut self, slice: &[u8]) {

@@ -1,4 +1,4 @@
-use sp_core::crypto::{PublicError, SecretStringError};
+pub use sp_core::crypto::{PublicError, SecretStringError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]

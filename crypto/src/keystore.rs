@@ -58,8 +58,8 @@ pub mod mock {
         }
 
         pub fn from_keyring(account: AccountKeyring) -> Self {
-            let key = CryptoArray::from_suri::<Pair>(&account.to_seed())
-                .expect("Well formed suri; qed");
+            let key =
+                CryptoArray::from_suri::<Pair>(&account.to_seed()).expect("Well formed suri; qed");
             Self {
                 keystore: None,
                 key: Some(key),

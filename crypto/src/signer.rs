@@ -29,6 +29,15 @@ pub trait Signer<T: Runtime>: substrate_subxt::Signer<T> + Send + Sync {
 
     /// Signs an arbitrary payload.
     fn sign(&self, payload: &[u8]) -> T::Signature;
+    /*
+    /// Performs a diffie hellman with a public key.
+    ///
+    /// Returns a different crypto error if the public key isn't the same type as the
+    /// signer.
+    fn diffie_hellman(
+        &self,
+        public: &<T::Signature as Verify>::Signer,
+    ) -> Result<CryptoArray<U32>, DifferentCrypto>;*/
 }
 
 /// Signer using a private key.

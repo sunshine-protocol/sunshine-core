@@ -1,5 +1,5 @@
 use crate::cipher::CipherText;
-use crate::error::{InvalidSuri, NotEnoughEntropyError, UnsupportedJunction};
+use crate::error::{InvalidSuri, NotEnoughEntropyError, SecretStringError, UnsupportedJunction};
 use crate::rand::random;
 use generic_array::{ArrayLength, GenericArray};
 use secrecy::{ExposeSecret, SecretString};
@@ -62,12 +62,14 @@ impl<S: Size> CryptoArray<S> {
         Ok(res)
     }
 
+    /// Only supports hard junctions.
     pub fn from_suri<P: Pair>(suri: &str) -> Result<Self, InvalidSuri>
     where
-        P::Seed: Into<GenericArray<u8, S>>
+        P::Seed: Into<GenericArray<u8, S>>,
     {
         let (_, seed) = P::from_string_with_seed(suri, None).map_err(InvalidSuri)?;
-        Ok(Self::new(seed.unwrap().into()))
+        let seed = seed.ok_or(InvalidSuri(SecretStringError::InvalidPath))?;
+        Ok(Self::new(seed.into()))
     }
 
     pub fn to_pair<P: Pair>(&self) -> P
@@ -77,15 +79,18 @@ impl<S: Size> CryptoArray<S> {
         P::from_seed(&P::Seed::from(self.0.clone()))
     }
 
+    /// Only supports hard junctions.
     pub fn derive<P: Pair>(&self, junction: DeriveJunction) -> Result<Self, UnsupportedJunction>
     where
         P::Seed: From<GenericArray<u8, S>> + Into<GenericArray<u8, S>>,
     {
         let seed = P::Seed::from(self.0.clone());
         let pair: P = self.to_pair();
-        let (_, seed) = pair.derive(std::iter::once(junction), Some(seed))
+        let (_, seed) = pair
+            .derive(std::iter::once(junction), Some(seed))
             .map_err(|_| UnsupportedJunction)?;
-        Ok(Self::new(seed.unwrap().into()))
+        let seed = seed.ok_or(UnsupportedJunction)?;
+        Ok(Self::new(seed.into()))
     }
 
     pub fn copy_from_slice(&mut self, slice: &[u8]) {
@@ -140,5 +145,25 @@ impl<S: Size> CryptoArray<S> {
 
     pub async fn encrypt_tagged<N: Size, T: Size>(&self, key: &Self) -> CipherText<S, N, T> {
         CipherText::encrypt(self, key).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use generic_array::typenum::U32;
+    use sp_core::crypto::{Derive, Pair as _};
+    use sp_core::sr25519::Pair;
+
+    #[async_std::test]
+    #[ignore]
+    async fn test_derive() {
+        let seed = CryptoArray::<U32>::random().await;
+        let public = seed.to_pair::<Pair>().public();
+        let j = DeriveJunction::hard(b"junction");
+        let dseed = seed.derive::<Pair>(j.clone()).unwrap();
+        let dpublic = dseed.to_pair::<Pair>().public();
+        let dpublic2 = public.derive(std::iter::once(j)).unwrap();
+        assert_eq!(dpublic, dpublic2);
     }
 }

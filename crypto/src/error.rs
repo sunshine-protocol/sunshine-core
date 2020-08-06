@@ -14,6 +14,10 @@ pub struct UnsupportedJunction;
 pub struct DecryptError;
 
 #[derive(Debug, Error)]
+#[error("Cannot perform a diffie hellman because crypto algorithm of sk and pk don't match")]
+pub struct DiffieHellmanError;
+
+#[derive(Debug, Error)]
 #[error("Invalid suri encoded key pair: {0:?}")]
 pub struct InvalidSuri(pub SecretStringError);
 

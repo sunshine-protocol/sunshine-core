@@ -1,11 +1,15 @@
 use crate::cipher::CipherText;
-use crate::error::{InvalidSuri, NotEnoughEntropyError, SecretStringError, UnsupportedJunction};
+use crate::error::{
+    InvalidSuri, KeySizeMissmatch, NotEnoughEntropyError, SecretStringError, UnsupportedJunction,
+};
 use crate::rand::random;
 use generic_array::{ArrayLength, GenericArray};
-use secrecy::{ExposeSecret, SecretString};
+use parity_scale_codec::{Decode, Encode, Input};
+use secrecy::{ExposeSecret, SecretString, SecretVec};
 use sp_core::{DeriveJunction, Pair};
 use std::fmt::Debug;
 use strobe_rs::{SecParam, Strobe};
+use subtle::ConstantTimeEq;
 use zeroize::Zeroize;
 
 /// Size marker trait.
@@ -15,8 +19,9 @@ impl<T: ArrayLength<u8> + Debug + Default + Eq + Send + Sync + 'static> Size for
 
 /// A wrapper around a generic array providing cryptographic functions.
 ///
-/// Safe to use for secrets. It is zeroized on drop and has a "safe" `Debug` implementation.
-#[derive(Clone, Default, Eq, PartialEq)]
+/// Safe to use for secrets. It is zeroized on drop and has a "safe" `Debug` implementation
+/// and comparisons happen in constant time.
+#[derive(Clone, Default, Hash)]
 pub struct CryptoArray<S: Size>(GenericArray<u8, S>);
 
 impl<S: Size> core::fmt::Debug for CryptoArray<S> {
@@ -43,6 +48,32 @@ impl<S: Size> AsMut<[u8]> for CryptoArray<S> {
     }
 }
 
+impl<S: Size> PartialEq for CryptoArray<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref().ct_eq(other.as_ref()).into()
+    }
+}
+
+impl<S: Size> Eq for CryptoArray<S> {}
+
+impl<S: Size> Encode for CryptoArray<S> {
+    fn size_hint(&self) -> usize {
+        S::to_usize()
+    }
+
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        f(self.as_ref())
+    }
+}
+
+impl<S: Size> Decode for CryptoArray<S> {
+    fn decode<R: Input>(value: &mut R) -> Result<Self, parity_scale_codec::Error> {
+        let mut me = Self::default();
+        value.read(me.as_mut())?;
+        Ok(me)
+    }
+}
+
 impl<S: Size> CryptoArray<S> {
     pub fn new(data: GenericArray<u8, S>) -> Self {
         Self(data)
@@ -50,6 +81,15 @@ impl<S: Size> CryptoArray<S> {
 
     pub async fn random() -> Self {
         random().await
+    }
+
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, KeySizeMissmatch> {
+        if bytes.len() != S::to_usize() {
+            return Err(KeySizeMissmatch);
+        }
+        let mut me = Self::default();
+        me.copy_from_slice(bytes);
+        Ok(me)
     }
 
     pub fn from_mnemonic(mnemonic: &bip39::Mnemonic) -> Result<Self, NotEnoughEntropyError> {
@@ -146,6 +186,10 @@ impl<S: Size> CryptoArray<S> {
     pub async fn encrypt_tagged<N: Size, T: Size>(&self, key: &Self) -> CipherText<S, N, T> {
         CipherText::encrypt(self, key).await
     }
+
+    pub fn to_vec(&self) -> SecretVec<u8> {
+        SecretVec::new(self.0.as_ref().to_vec())
+    }
 }
 
 #[cfg(test)]
@@ -165,5 +209,12 @@ mod tests {
         let dpublic = dseed.to_pair::<Pair>().public();
         let dpublic2 = public.derive(std::iter::once(j)).unwrap();
         assert_eq!(dpublic, dpublic2);
+    }
+
+    #[async_std::test]
+    async fn test_encode_decode() {
+        let key = CryptoArray::<U32>::random().await;
+        let key2 = CryptoArray::<U32>::decode(&mut &key.encode()[..]).unwrap();
+        assert_eq!(key, key2);
     }
 }

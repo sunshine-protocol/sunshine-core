@@ -1,8 +1,10 @@
 use crate::array::CryptoArray;
 use crate::dh::DiffieHellman;
 use crate::error::DiffieHellmanError;
+use crate::keychain::{KeyType, TypedPair};
 use generic_array::typenum::U32;
 use parity_scale_codec::Encode;
+use sp_core::Pair;
 use sp_runtime::traits::{IdentifyAccount, SignedExtension, Verify};
 use std::convert::TryInto;
 use std::future::Future;
@@ -46,21 +48,23 @@ pub trait Signer<T: Runtime>: substrate_subxt::Signer<T> + Send + Sync {
 }
 
 /// Signer using a private key.
-pub struct GenericSigner<T: Runtime, P: DiffieHellman<SharedSecret = [u8; 32]>> {
+pub struct GenericSigner<T: Runtime, K: KeyType> {
     account_id: T::AccountId,
     public: <T::Signature as Verify>::Signer,
     nonce: Option<T::Index>,
-    signer: P,
+    signer: TypedPair<K>,
 }
 
-impl<T: Runtime, P: DiffieHellman<SharedSecret = [u8; 32]>> GenericSigner<T, P>
+impl<T: Runtime, K: KeyType> GenericSigner<T, K>
 where
-    <T::Signature as Verify>::Signer: From<P::Public> + IdentifyAccount<AccountId = T::AccountId>,
+    <T::Signature as Verify>::Signer:
+        From<<K::Pair as Pair>::Public> + IdentifyAccount<AccountId = T::AccountId>,
 {
     /// Creates a new `Signer` from a `Pair`.
-    pub fn new(signer: P) -> Self {
-        let public = <T::Signature as Verify>::Signer::from(signer.public());
-        let account_id = <T::Signature as Verify>::Signer::from(signer.public()).into_account();
+    pub fn new(signer: TypedPair<K>) -> Self {
+        let raw_public = &*signer.public();
+        let public = <T::Signature as Verify>::Signer::from(raw_public.clone());
+        let account_id = <T::Signature as Verify>::Signer::from(raw_public.clone()).into_account();
         Self {
             signer,
             public,
@@ -70,17 +74,17 @@ where
     }
 }
 
-impl<T: Runtime, P: DiffieHellman<SharedSecret = [u8; 32]>> Signer<T> for GenericSigner<T, P>
+impl<T: Runtime, K: KeyType> Signer<T> for GenericSigner<T, K>
 where
     T::AccountId: Into<T::Address>,
     <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
-    <T::Signature as Verify>::Signer: From<P::Public>
-        + TryInto<P::Public>
+    <T::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
+        + TryInto<<K::Pair as Pair>::Public>
         + IdentifyAccount<AccountId = T::AccountId>
         + Clone
         + Send
         + Sync,
-    P::Signature: Into<T::Signature>,
+    <K::Pair as Pair>::Signature: Into<T::Signature>,
 {
     fn public(&self) -> &<T::Signature as Verify>::Signer {
         &self.public
@@ -130,18 +134,17 @@ where
     }
 }
 
-impl<T: Runtime, P: DiffieHellman<SharedSecret = [u8; 32]>> substrate_subxt::Signer<T>
-    for GenericSigner<T, P>
+impl<T: Runtime, K: KeyType> substrate_subxt::Signer<T> for GenericSigner<T, K>
 where
     T::AccountId: Into<T::Address>,
     <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
-    <T::Signature as Verify>::Signer: From<P::Public>
-        + TryInto<P::Public>
+    <T::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
+        + TryInto<<K::Pair as Pair>::Public>
         + IdentifyAccount<AccountId = T::AccountId>
         + Clone
         + Send
         + Sync,
-    P::Signature: Into<T::Signature>,
+    <K::Pair as Pair>::Signature: Into<T::Signature>,
 {
     fn account_id(&self) -> &T::AccountId {
         Signer::account_id(self)

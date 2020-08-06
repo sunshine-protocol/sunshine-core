@@ -39,7 +39,7 @@ pub trait Keystore: Send + Sync {
     async fn unlock(&mut self, password: &SecretString) -> Result<()>;
 }
 
-#[cfg(feature = "mock")]
+#[cfg(any(test, feature = "mock"))]
 pub mod mock {
     use super::*;
     use secrecy::ExposeSecret;
@@ -108,5 +108,43 @@ pub mod mock {
                 Err(KeystoreUninitialized.into())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keychain::{KeyChain, KeyType};
+    use crate::secret_box::SecretBox;
+    use crate::signer::{GenericSigner, Signer};
+    use mock::MemKeystore;
+    use sp_core::sr25519;
+    use sp_keyring::AccountKeyring;
+    use substrate_subxt::DefaultNodeRuntime;
+
+    pub struct DeviceKey;
+
+    impl KeyType for DeviceKey {
+        const KEY_TYPE: u8 = 0;
+        type Pair = sr25519::Pair;
+    }
+
+    #[async_std::test]
+    async fn test_flow() {
+        let keystore = MemKeystore::from_keyring(AccountKeyring::Alice);
+        let key = keystore.get_key().unwrap();
+        let mut chain = KeyChain::new();
+        chain.insert::<DeviceKey>(key);
+        chain.insert_public::<DeviceKey>(AccountKeyring::Bob.public());
+
+        let signer = GenericSigner::<DefaultNodeRuntime, DeviceKey>::new(chain.get().unwrap());
+        let _secret = signer
+            .diffie_hellman(&AccountKeyring::Bob.public().into())
+            .unwrap();
+
+        let text = "a string".to_string();
+        let secret = SecretBox::<DeviceKey, String>::encrypt(&chain, &text).unwrap();
+        let text2 = secret.decrypt(&chain).unwrap();
+        assert_eq!(text, text2);
     }
 }

@@ -6,6 +6,10 @@ use thiserror::Error;
 pub struct NotEnoughEntropyError;
 
 #[derive(Debug, Error)]
+#[error("Key size missmatch.")]
+pub struct KeySizeMissmatch;
+
+#[derive(Debug, Error)]
 #[error("Unsupported junction.")]
 pub struct UnsupportedJunction;
 

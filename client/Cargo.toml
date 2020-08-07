@@ -1,0 +1,11 @@
+[package]
+name = "sunshine-client"
+version = "0.1.0"
+authors = ["David Craven <david@craven.ch>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0.32"
+async-trait = "0.1.36"
+substrate-subxt = "0.11.0"
+sunshine-crypto = { path = "../crypto" }

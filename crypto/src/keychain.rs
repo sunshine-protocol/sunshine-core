@@ -1,10 +1,13 @@
 use crate::array::CryptoArray;
 use crate::dh::DiffieHellman;
+use crate::error::{InvalidSuri, SecretStringError};
 use generic_array::typenum::U32;
+use parity_scale_codec::{Decode, Encode, Input};
 use sp_core::{Pair, Public};
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::ops::Deref;
+use zeroize::Zeroize;
 
 pub trait KeyType: Send + Sync {
     const KEY_TYPE: u8;
@@ -13,8 +16,33 @@ pub trait KeyType: Send + Sync {
 
 pub struct TypedPair<K: KeyType> {
     _marker: PhantomData<K>,
+    seed: CryptoArray<U32>,
     pair: K::Pair,
 }
+
+impl<K: KeyType> std::fmt::Debug for TypedPair<K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", std::any::type_name::<Self>())
+    }
+}
+
+impl<K: KeyType> Clone for TypedPair<K> {
+    fn clone(&self) -> Self {
+        Self {
+            _marker: self._marker,
+            seed: self.seed.clone(),
+            pair: self.pair.clone(),
+        }
+    }
+}
+
+impl<K: KeyType> PartialEq for TypedPair<K> {
+    fn eq(&self, other: &Self) -> bool {
+        self.seed == other.seed
+    }
+}
+
+impl<K: KeyType> Eq for TypedPair<K> {}
 
 impl<K: KeyType> Deref for TypedPair<K> {
     type Target = K::Pair;
@@ -24,16 +52,49 @@ impl<K: KeyType> Deref for TypedPair<K> {
     }
 }
 
+impl<K: KeyType> Encode for TypedPair<K> {
+    fn size_hint(&self) -> usize {
+        self.seed.size_hint()
+    }
+
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        self.seed.using_encoded(f)
+    }
+}
+
+impl<K: KeyType> Decode for TypedPair<K> {
+    fn decode<R: Input>(value: &mut R) -> Result<Self, parity_scale_codec::Error> {
+        let seed = CryptoArray::decode(value)?;
+        Ok(Self::from_seed(seed))
+    }
+}
+
 impl<K: KeyType> TypedPair<K> {
-    pub fn new(pair: K::Pair) -> Self {
+    pub fn from_seed(seed: CryptoArray<U32>) -> Self {
+        let pair = K::Pair::from_seed_slice(seed.as_ref()).expect("seed is the correct size; qed");
         Self {
             _marker: PhantomData,
+            seed,
             pair,
         }
     }
 
-    pub fn generate() -> Self {
-        Self::new(K::Pair::generate().0)
+    pub fn from_suri(suri: &str) -> Result<Self, InvalidSuri> {
+        let (_, seed) = K::Pair::from_string_with_seed(suri, None).map_err(InvalidSuri)?;
+        let mut seed = seed.ok_or(InvalidSuri(SecretStringError::InvalidPath))?;
+        let array = CryptoArray::from_slice(&seed).expect("seed has valid length; qed");
+        let me = Self::from_seed(array);
+        seed.zeroize();
+        Ok(me)
+    }
+
+    pub async fn generate() -> Self {
+        let seed = CryptoArray::random().await;
+        Self::from_seed(seed)
+    }
+
+    pub fn seed(&self) -> &CryptoArray<U32> {
+        &self.seed
     }
 
     pub fn public(&self) -> TypedPublic<K> {
@@ -45,6 +106,29 @@ pub struct TypedPublic<K: KeyType> {
     _marker: PhantomData<K>,
     public: <K::Pair as Pair>::Public,
 }
+
+impl<K: KeyType> std::fmt::Debug for TypedPublic<K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", std::any::type_name::<Self>())
+    }
+}
+
+impl<K: KeyType> Clone for TypedPublic<K> {
+    fn clone(&self) -> Self {
+        Self {
+            _marker: self._marker,
+            public: self.public.clone(),
+        }
+    }
+}
+
+impl<K: KeyType> PartialEq for TypedPublic<K> {
+    fn eq(&self, other: &Self) -> bool {
+        self.public == other.public
+    }
+}
+
+impl<K: KeyType> Eq for TypedPublic<K> {}
 
 impl<K: KeyType> Deref for TypedPublic<K> {
     type Target = <K::Pair as Pair>::Public;
@@ -63,6 +147,23 @@ impl<K: KeyType> TypedPublic<K> {
     }
 }
 
+impl<K: KeyType> Encode for TypedPublic<K> {
+    fn size_hint(&self) -> usize {
+        self.public.as_ref().len()
+    }
+
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        self.public.as_ref().using_encoded(f)
+    }
+}
+
+impl<K: KeyType> Decode for TypedPublic<K> {
+    fn decode<R: Input>(value: &mut R) -> Result<Self, parity_scale_codec::Error> {
+        let bytes: Vec<u8> = Decode::decode(value)?;
+        Ok(Self::new(<K::Pair as Pair>::Public::from_slice(&bytes)))
+    }
+}
+
 #[derive(Default)]
 pub struct KeyChain {
     keys: HashMap<u8, CryptoArray<U32>>,
@@ -74,31 +175,26 @@ impl KeyChain {
         Default::default()
     }
 
-    pub fn insert<T: KeyType>(&mut self, seed: CryptoArray<U32>) {
-        let public = seed.to_pair::<T::Pair>().public();
-        self.keys.insert(T::KEY_TYPE, seed);
-        self.insert_public::<T>(public);
+    pub fn insert<T: KeyType>(&mut self, pair: TypedPair<T>) {
+        self.keys.insert(T::KEY_TYPE, pair.seed().clone());
+        self.insert_public::<T>(pair.public());
     }
 
     pub fn get<T: KeyType>(&self) -> Option<TypedPair<T>> {
-        self.keys.get(&T::KEY_TYPE).map(|bytes| {
-            let pair = T::Pair::from_seed_slice(bytes.as_ref()).expect("valid key size; qed");
-            TypedPair::new(pair)
-        })
+        self.keys
+            .get(&T::KEY_TYPE)
+            .map(|seed| TypedPair::from_seed(seed.clone()))
     }
 
-    pub fn insert_public<T: KeyType>(&mut self, public: <T::Pair as Pair>::Public) {
+    pub fn insert_public<T: KeyType>(&mut self, public: TypedPublic<T>) {
         let group = self.public.entry(T::KEY_TYPE).or_default();
-        group.insert(public.as_ref().to_vec());
+        group.insert(public.encode());
     }
 
     pub fn get_public<T: KeyType>(&self) -> Vec<TypedPublic<T>> {
         if let Some(set) = self.public.get(&T::KEY_TYPE) {
             set.iter()
-                .map(|bytes| {
-                    let public = <T::Pair as Pair>::Public::from_slice(bytes.as_ref());
-                    TypedPublic::new(public)
-                })
+                .map(|bytes| Decode::decode(&mut &bytes[..]).expect("valid key size; qed"))
                 .collect()
         } else {
             Default::default()

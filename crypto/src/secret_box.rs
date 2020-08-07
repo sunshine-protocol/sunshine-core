@@ -53,12 +53,15 @@ impl<K, T> Decode for SecretBox<K, T> {
 }
 
 impl<K: KeyType, T: Decode + Encode> SecretBox<K, T> {
-    pub fn encrypt(key_chain: &KeyChain, payload: &T) -> Result<Self, SecretBoxError> {
+    pub async fn encrypt(key_chain: &KeyChain, payload: &T) -> Result<Self, SecretBoxError> {
         let recipients = key_chain.get_public::<K>();
-        Self::encrypt_for(payload, &recipients)
+        Self::encrypt_for(payload, &recipients).await
     }
 
-    pub fn encrypt_for(payload: &T, recipients: &[TypedPublic<K>]) -> Result<Self, SecretBoxError> {
+    pub async fn encrypt_for(
+        payload: &T,
+        recipients: &[TypedPublic<K>],
+    ) -> Result<Self, SecretBoxError> {
         if recipients.is_empty() {
             return Err(SecretBoxError::NoRecipients);
         }
@@ -78,7 +81,7 @@ impl<K: KeyType, T: Decode + Encode> SecretBox<K, T> {
         buf.extend_from_slice(&[recipients.len() as u8]);
 
         // Compute an ephermal public key and write to buffer.
-        let secret = TypedPair::<K>::generate();
+        let secret = TypedPair::<K>::generate().await;
         let ephemeral = secret.public();
         buf.extend_from_slice(ephemeral.as_ref());
 
@@ -183,7 +186,6 @@ pub enum SecretBoxError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::array::CryptoArray;
     use sp_core::sr25519;
 
     #[derive(Debug, Eq, PartialEq)]
@@ -198,19 +200,19 @@ mod tests {
         let mut alice = KeyChain::new();
         let mut bob = KeyChain::new();
 
-        let dk = CryptoArray::random().await;
-        let dk_pub = dk.to_pair::<sr25519::Pair>().public();
-        alice.insert::<AllDevices>(dk);
-        bob.insert_public::<AllDevices>(dk_pub);
+        let dk = TypedPair::<AllDevices>::generate().await;
+        bob.insert_public(dk.public());
+        alice.insert(dk);
 
-        let dk = CryptoArray::random().await;
-        let dk_pub = dk.to_pair::<sr25519::Pair>().public();
-        bob.insert::<AllDevices>(dk);
-        alice.insert_public::<AllDevices>(dk_pub);
+        let dk = TypedPair::<AllDevices>::generate().await;
+        alice.insert_public(dk.public());
+        bob.insert(dk);
 
         let value = "hello world".to_string();
 
-        let secret = SecretBox::<AllDevices, String>::encrypt(&alice, &value).unwrap();
+        let secret = SecretBox::<AllDevices, String>::encrypt(&alice, &value)
+            .await
+            .unwrap();
         let value2 = secret.decrypt(&alice).unwrap();
         assert_eq!(value, value2);
         let value2 = secret.decrypt(&bob).unwrap();

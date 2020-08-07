@@ -10,10 +10,6 @@ pub struct NotEnoughEntropyError;
 pub struct KeySizeMissmatch;
 
 #[derive(Debug, Error)]
-#[error("Unsupported junction.")]
-pub struct UnsupportedJunction;
-
-#[derive(Debug, Error)]
 #[error("Failed to decrypt message.")]
 pub struct DecryptError;
 

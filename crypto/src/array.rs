@@ -1,12 +1,9 @@
 use crate::cipher::CipherText;
-use crate::error::{
-    InvalidSuri, KeySizeMissmatch, NotEnoughEntropyError, SecretStringError, UnsupportedJunction,
-};
+use crate::error::{KeySizeMissmatch, NotEnoughEntropyError};
 use crate::rand::random;
 use generic_array::{ArrayLength, GenericArray};
 use parity_scale_codec::{Decode, Encode, Input};
 use secrecy::{ExposeSecret, SecretString, SecretVec};
-use sp_core::{DeriveJunction, Pair};
 use std::fmt::Debug;
 use strobe_rs::{SecParam, Strobe};
 use subtle::ConstantTimeEq;
@@ -26,7 +23,7 @@ pub struct CryptoArray<S: Size>(GenericArray<u8, S>);
 
 impl<S: Size> core::fmt::Debug for CryptoArray<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "[u8; {}]", S::to_u8())
+        write!(f, "{}", std::any::type_name::<Self>())
     }
 }
 
@@ -102,37 +99,6 @@ impl<S: Size> CryptoArray<S> {
         Ok(res)
     }
 
-    /// Only supports hard junctions.
-    pub fn from_suri<P: Pair>(suri: &str) -> Result<Self, InvalidSuri>
-    where
-        P::Seed: Into<GenericArray<u8, S>>,
-    {
-        let (_, seed) = P::from_string_with_seed(suri, None).map_err(InvalidSuri)?;
-        let seed = seed.ok_or(InvalidSuri(SecretStringError::InvalidPath))?;
-        Ok(Self::new(seed.into()))
-    }
-
-    pub fn to_pair<P: Pair>(&self) -> P
-    where
-        P::Seed: From<GenericArray<u8, S>>,
-    {
-        P::from_seed(&P::Seed::from(self.0.clone()))
-    }
-
-    /// Only supports hard junctions.
-    pub fn derive<P: Pair>(&self, junction: DeriveJunction) -> Result<Self, UnsupportedJunction>
-    where
-        P::Seed: From<GenericArray<u8, S>> + Into<GenericArray<u8, S>>,
-    {
-        let seed = P::Seed::from(self.0.clone());
-        let pair: P = self.to_pair();
-        let (_, seed) = pair
-            .derive(std::iter::once(junction), Some(seed))
-            .map_err(|_| UnsupportedJunction)?;
-        let seed = seed.ok_or(UnsupportedJunction)?;
-        Ok(Self::new(seed.into()))
-    }
-
     pub fn copy_from_slice(&mut self, slice: &[u8]) {
         self.as_mut().copy_from_slice(slice);
     }
@@ -196,20 +162,6 @@ impl<S: Size> CryptoArray<S> {
 mod tests {
     use super::*;
     use generic_array::typenum::U32;
-    use sp_core::crypto::{Derive, Pair as _};
-    use sp_core::sr25519::Pair;
-
-    #[async_std::test]
-    #[ignore]
-    async fn test_derive() {
-        let seed = CryptoArray::<U32>::random().await;
-        let public = seed.to_pair::<Pair>().public();
-        let j = DeriveJunction::hard(b"junction");
-        let dseed = seed.derive::<Pair>(j.clone()).unwrap();
-        let dpublic = dseed.to_pair::<Pair>().public();
-        let dpublic2 = public.derive(std::iter::once(j)).unwrap();
-        assert_eq!(dpublic, dpublic2);
-    }
 
     #[async_std::test]
     async fn test_encode_decode() {

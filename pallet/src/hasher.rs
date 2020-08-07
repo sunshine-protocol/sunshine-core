@@ -1,6 +1,6 @@
 use hash256_std_hasher::Hash256StdHasher;
 use hash_db::Hasher;
-pub use sp_core::H256;
+use sp_core::H256;
 
 #[derive(Debug)]
 pub struct Blake2Hasher;

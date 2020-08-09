@@ -1,5 +1,5 @@
 use crate::cipher::CipherText;
-use crate::error::{KeySizeMissmatch, NotEnoughEntropyError};
+use crate::error::{KeySizeMissmatch, NotEnoughEntropy};
 use crate::rand::random;
 use generic_array::{ArrayLength, GenericArray};
 use parity_scale_codec::{Decode, Encode, Input};
@@ -89,11 +89,11 @@ impl<S: Size> CryptoArray<S> {
         Ok(me)
     }
 
-    pub fn from_mnemonic(mnemonic: &bip39::Mnemonic) -> Result<Self, NotEnoughEntropyError> {
+    pub fn from_mnemonic(mnemonic: &bip39::Mnemonic) -> Result<Self, NotEnoughEntropy> {
         let mut res = Self::default();
         let entropy = mnemonic.to_entropy();
         if entropy.len() < res.len() {
-            return Err(NotEnoughEntropyError);
+            return Err(NotEnoughEntropy);
         }
         res.copy_from_slice(&entropy[..res.len()]);
         Ok(res)
@@ -133,23 +133,10 @@ impl<S: Size> CryptoArray<S> {
         res
     }
 
-    pub fn encrypt(&self, key: &Self) -> Self {
-        let mut s = Strobe::new(b"DiscoAEAD", SecParam::B128);
-        let mut res = self.clone();
-        s.ad(key.as_ref(), false);
-        s.send_enc(res.as_mut(), false);
-        res
-    }
-
-    pub fn decrypt(&self, key: &Self) -> Self {
-        let mut s = Strobe::new(b"DiscoAEAD", SecParam::B128);
-        let mut res = self.clone();
-        s.ad(key.as_ref(), false);
-        s.recv_enc(res.as_mut(), false);
-        res
-    }
-
-    pub async fn encrypt_tagged<N: Size, T: Size>(&self, key: &Self) -> CipherText<S, N, T> {
+    pub async fn encrypt<K: Size, N: Size, T: Size>(
+        &self,
+        key: &CryptoArray<K>,
+    ) -> CipherText<S, K, N, T> {
         CipherText::encrypt(self, key).await
     }
 

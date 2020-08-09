@@ -1,7 +1,8 @@
 use crate::array::CryptoArray;
+use crate::cipher::CipherText;
 use crate::dh::DiffieHellman;
-use crate::error::{InvalidSuri, SecretStringError};
-use generic_array::typenum::U32;
+use crate::error::{DecryptError, InvalidSuri, NotEnoughEntropy, SecretStringError};
+use generic_array::typenum::{U16, U24, U32};
 use parity_scale_codec::{Decode, Encode, Input};
 use sp_core::{Pair, Public};
 use std::collections::{HashMap, HashSet};
@@ -88,9 +89,24 @@ impl<K: KeyType> TypedPair<K> {
         Ok(me)
     }
 
+    pub fn from_mnemonic(mnemonic: &bip39::Mnemonic) -> Result<Self, NotEnoughEntropy> {
+        Ok(Self::from_seed(CryptoArray::from_mnemonic(mnemonic)?))
+    }
+
     pub async fn generate() -> Self {
         let seed = CryptoArray::random().await;
         Self::from_seed(seed)
+    }
+
+    pub async fn encrypt(&self, key: &CryptoArray<U32>) -> CipherText<U32, U32, U24, U16> {
+        self.seed.encrypt(key).await
+    }
+
+    pub fn decrypt(
+        cipher: &CipherText<U32, U32, U24, U16>,
+        key: &CryptoArray<U32>,
+    ) -> Result<Self, DecryptError> {
+        Ok(Self::from_seed(cipher.decrypt(key)?))
     }
 
     pub fn seed(&self) -> &CryptoArray<U32> {

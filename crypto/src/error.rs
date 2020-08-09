@@ -3,7 +3,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 #[error("Mnemonic didn't contain enough entropy.")]
-pub struct NotEnoughEntropyError;
+pub struct NotEnoughEntropy;
 
 #[derive(Debug, Error)]
 #[error("Key size missmatch.")]

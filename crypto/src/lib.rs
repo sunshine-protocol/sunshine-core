@@ -6,4 +6,10 @@ pub mod keychain;
 pub mod keystore;
 pub mod rand;
 pub mod secret_box;
+pub mod secret_file;
 pub mod signer;
+
+pub use bip39;
+pub use generic_array::typenum;
+pub use secrecy;
+pub use sp_core::{ed25519, sr25519};

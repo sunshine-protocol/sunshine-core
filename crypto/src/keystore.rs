@@ -15,7 +15,7 @@ pub trait Keystore: Send + Sync {
     /// Returns the key from the keystore.
     ///
     /// If the keystore is locked it will return a `KeystoreLocked` error.
-    fn get_key(&self) -> Result<TypedPair<Self::KeyType>>;
+    async fn get_key(&self) -> Result<TypedPair<Self::KeyType>>;
 
     /// Sets the key of the keystore.
     ///
@@ -73,7 +73,7 @@ pub mod mock {
     impl<K: KeyType> Keystore for MemKeystore<K> {
         type KeyType = K;
 
-        fn get_key(&self) -> Result<TypedPair<K>> {
+        async fn get_key(&self) -> Result<TypedPair<K>> {
             if let Some(key) = self.key.clone() {
                 Ok(key)
             } else {
@@ -136,8 +136,9 @@ mod tests {
     #[async_std::test]
     async fn test_flow() {
         let keystore = MemKeystore::<DeviceKey>::from_keyring(AccountKeyring::Alice);
+        let key = keystore.get_key().await.unwrap();
         let mut chain = KeyChain::new();
-        chain.insert(keystore.get_key().unwrap());
+        chain.insert(key);
         let public = TypedPublic::<DeviceKey>::new(AccountKeyring::Bob.public());
         chain.insert_public(public);
 

@@ -4,5 +4,9 @@ members = [
     "codec",
     "crypto",
     "ffi",
+    "keystore",
     "pallet",
 ]
+
+[patch.crates-io]
+libipld = { path = "../../ipld/rust-ipld" }

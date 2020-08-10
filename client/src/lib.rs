@@ -2,20 +2,22 @@ pub use anyhow::{Error, Result};
 pub use async_trait::async_trait;
 pub use sunshine_codec as codec;
 pub use sunshine_crypto as crypto;
+pub use sunshine_crypto::keystore::{Keystore, KeystoreLocked};
+pub use sunshine_crypto::secrecy::SecretString;
+pub use sunshine_crypto::signer::Signer;
+pub use sunshine_keystore as keystore;
 pub use sunshine_pallet_utils::cid;
 pub use sunshine_pallet_utils::hasher::Blake2Hasher;
 
-use parity_scale_codec::{Decode, Encode};
-use sp_core::Pair;
-use sp_runtime::traits::{IdentifyAccount, Verify};
-use std::convert::TryInto;
-use substrate_subxt::{sp_core, sp_runtime, Runtime, SignedExtension, SignedExtra};
-use sunshine_codec::{BlockBuilder, Hasher, OffchainBlock, TreeDecode, TreeEncode};
+pub mod block;
+pub mod client;
+mod light;
+#[cfg(feature = "mock")]
+pub mod mock;
+
+use substrate_subxt::Runtime;
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
-pub use sunshine_crypto::keystore::{Keystore, KeystoreLocked};
-use sunshine_crypto::secrecy::SecretString;
-pub use sunshine_crypto::signer::Signer;
-use sunshine_crypto::signer::{GenericSigner, GenericSubxtSigner};
+use sunshine_crypto::signer::GenericSubxtSigner;
 
 /// The client trait.
 #[async_trait]
@@ -82,127 +84,25 @@ pub trait Client<R: Runtime>: Send + Sync {
     fn offchain_client(&self) -> &Self::OffchainClient;
 }
 
-pub struct GenericClient<R: Runtime, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
-    keystore: KS,
-    keychain: KeyChain,
-    signer: Option<GenericSigner<R, K>>,
-    chain_client: substrate_subxt::Client<R>,
-    offchain_client: O,
+use sc_service::{ChainSpec, Configuration, RpcHandlers, TaskManager};
+use std::sync::Arc;
+use thiserror::Error;
+
+pub trait NodeConfig {
+    type ChainSpec: ChainSpec + Clone + 'static;
+    type Runtime: Runtime + 'static;
+    fn impl_name() -> &'static str;
+    fn impl_version() -> &'static str;
+    fn author() -> &'static str;
+    fn copyright_start_year() -> i32;
+    fn chain_spec_dev() -> Self::ChainSpec;
+    fn chain_spec_from_json_bytes(
+        json: Vec<u8>,
+    ) -> std::result::Result<Self::ChainSpec, ChainSpecError>;
+    fn new_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>)>;
+    fn new_full(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>)>;
 }
 
-#[async_trait]
-impl<R, K, KS, O> Client<R> for GenericClient<R, K, KS, O>
-where
-    R: Runtime,
-    R::AccountId: Into<R::Address>,
-    <<R::Extra as SignedExtra<R>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
-    <R::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
-        + TryInto<<K::Pair as Pair>::Public>
-        + IdentifyAccount<AccountId = R::AccountId>
-        + Clone
-        + Send
-        + Sync,
-    K: KeyType,
-    <K::Pair as Pair>::Signature: Into<R::Signature>,
-    KS: Keystore<K>,
-    O: Send + Sync,
-{
-    type Keystore = KS;
-    type KeyType = K;
-    type OffchainClient = O;
-
-    fn keystore(&self) -> &Self::Keystore {
-        &self.keystore
-    }
-
-    fn keystore_mut(&mut self) -> &mut Self::Keystore {
-        &mut self.keystore
-    }
-
-    fn keychain(&self) -> &KeyChain {
-        &self.keychain
-    }
-
-    fn keychain_mut(&mut self) -> &mut KeyChain {
-        &mut self.keychain
-    }
-
-    fn signer(&self) -> Result<&dyn Signer<R>> {
-        let signer_ref = self.signer.as_ref().ok_or(KeystoreLocked)?;
-        Ok(signer_ref as _)
-    }
-
-    fn signer_mut(&mut self) -> Result<&mut dyn Signer<R>> {
-        let signer_ref = self.signer.as_mut().ok_or(KeystoreLocked)?;
-        Ok(signer_ref as _)
-    }
-
-    fn chain_signer<'a>(&'a self) -> Result<GenericSubxtSigner<'a, R>> {
-        Ok(GenericSubxtSigner(self.signer()?))
-    }
-
-    async fn set_key(
-        &mut self,
-        key: TypedPair<Self::KeyType>,
-        password: &SecretString,
-        force: bool,
-    ) -> Result<()> {
-        self.keystore_mut().set_key(&key, password, force).await?;
-        self.keychain_mut().insert(key.clone());
-        self.signer = Some(GenericSigner::new(key));
-        Ok(())
-    }
-
-    async fn lock(&mut self) -> Result<()> {
-        self.signer = None;
-        self.keychain.remove::<Self::KeyType>();
-        self.keystore.lock().await?;
-        Ok(())
-    }
-
-    async fn unlock(&mut self, password: &SecretString) -> Result<()> {
-        let key = self.keystore.unlock(password).await?;
-        self.keychain.insert(key.clone());
-        self.signer = Some(GenericSigner::new(key));
-        Ok(())
-    }
-
-    fn chain_client(&self) -> &substrate_subxt::Client<R> {
-        &self.chain_client
-    }
-
-    fn offchain_client(&self) -> &Self::OffchainClient {
-        &self.offchain_client
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GenericBlock<T, H: Hasher> {
-    pub number: u64,
-    pub ancestor: Option<H::Out>,
-    pub payload: T,
-}
-
-impl<T: Encode, H: Hasher> TreeEncode<H> for GenericBlock<T, H>
-where
-    H::Out: Encode + 'static,
-{
-    fn encode_tree(&self, block: &mut BlockBuilder<H>, _prefix: &[u8], _proof: bool) {
-        block.insert(b"number", &self.number, true);
-        block.insert(b"ancestor", &self.ancestor, true);
-        block.insert(b"payload", &self.payload, false);
-    }
-}
-
-impl<T: Decode, H: Hasher> TreeDecode<H> for GenericBlock<T, H>
-where
-    H::Out: Decode + 'static,
-{
-    fn decode_tree(block: &OffchainBlock<H>, _prefix: &[u8]) -> Result<Self> {
-        Ok(Self {
-            number: block.get(b"number")?,
-            ancestor: block.get(b"ancestor")?,
-            payload: block.get(b"payload")?,
-        })
-    }
-}
+#[derive(Debug, Error)]
+#[error("Invalid chain spec: {0}")]
+pub struct ChainSpecError(String);

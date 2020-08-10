@@ -18,6 +18,7 @@ pub mod node;
 use substrate_subxt::Runtime;
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
 use sunshine_crypto::signer::GenericSubxtSigner;
+use thiserror::Error;
 
 /// The client trait.
 #[async_trait]
@@ -83,3 +84,7 @@ pub trait Client<R: Runtime>: Send + Sync {
     /// Returns a reference to the offchain client.
     fn offchain_client(&self) -> &Self::OffchainClient;
 }
+
+#[derive(Debug, Error)]
+#[error("config dir not found")]
+pub struct ConfigDirNotFound;

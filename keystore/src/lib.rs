@@ -14,6 +14,10 @@ use sunshine_crypto::secrecy::SecretString;
 
 #[async_trait::async_trait]
 impl<K: KeyType> sunshine_crypto::keystore::Keystore<K> for Keystore<K> {
+    async fn is_initialized(&self) -> Result<bool> {
+        self.is_initialized().await
+    }
+
     async fn set_key(
         &mut self,
         key: &TypedPair<K>,

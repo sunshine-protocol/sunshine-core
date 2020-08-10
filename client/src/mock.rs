@@ -9,7 +9,9 @@ use std::convert::TryInto;
 use substrate_subxt::client::{
     DatabaseConfig, KeystoreConfig, Role, SubxtClient, SubxtClientConfig,
 };
-use substrate_subxt::{sp_core, sp_runtime, ClientBuilder, Runtime, SignedExtension, SignedExtra};
+use substrate_subxt::{
+    sp_core, sp_runtime, system::System, ClientBuilder, Runtime, SignedExtension, SignedExtra,
+};
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
 use sunshine_crypto::secrecy::SecretString;
 pub use tempdir::TempDir;
@@ -41,19 +43,19 @@ pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
     (client, tmp)
 }
 
-impl<R, K, O: From<MemStore>> GenericClient<R, K, KeystoreImpl<K>, O>
+impl<N, K, O: From<MemStore>> GenericClient<N, K, KeystoreImpl<K>, O>
 where
-    R: Runtime,
-    R::AccountId: Into<R::Address>,
-    <<R::Extra as SignedExtra<R>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
-    <R::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
+    N: NodeConfig,
+    <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
+    <<<N::Runtime as Runtime>::Extra as SignedExtra<N::Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+    <<N::Runtime as Runtime>::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
         + TryInto<<K::Pair as Pair>::Public>
-        + IdentifyAccount<AccountId = R::AccountId>
+        + IdentifyAccount<AccountId = <N::Runtime as System>::AccountId>
         + Clone
         + Send
         + Sync,
     K: KeyType,
-    <K::Pair as Pair>::Signature: Into<R::Signature>,
+    <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
     O: Send + Sync,
 {
     pub async fn mock(test_node: &TestNode, account: AccountKeyring) -> Self {
@@ -75,19 +77,19 @@ where
     }
 }
 
-impl<R, K, O: From<MemStore>> GenericClient<R, K, crate::client::KeystoreImpl<K>, O>
+impl<N, K, O: From<MemStore>> GenericClient<N, K, crate::client::KeystoreImpl<K>, O>
 where
-    R: Runtime,
-    R::AccountId: Into<R::Address>,
-    <<R::Extra as SignedExtra<R>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
-    <R::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
+    N: NodeConfig,
+    <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
+    <<<N::Runtime as Runtime>::Extra as SignedExtra<N::Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+    <<N::Runtime as Runtime>::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
         + TryInto<<K::Pair as Pair>::Public>
-        + IdentifyAccount<AccountId = R::AccountId>
+        + IdentifyAccount<AccountId = <N::Runtime as System>::AccountId>
         + Clone
         + Send
         + Sync,
     K: KeyType,
-    <K::Pair as Pair>::Signature: Into<R::Signature>,
+    <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
     O: Send + Sync,
 {
     pub async fn mock_with_keystore(

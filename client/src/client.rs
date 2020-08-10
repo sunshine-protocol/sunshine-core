@@ -9,7 +9,9 @@ use sp_core::Pair;
 use sp_runtime::traits::{IdentifyAccount, Verify};
 use std::convert::TryInto;
 use std::path::Path;
-use substrate_subxt::{sp_core, sp_runtime, ClientBuilder, Runtime, SignedExtension, SignedExtra};
+use substrate_subxt::{
+    sp_core, sp_runtime, system::System, ClientBuilder, Runtime, SignedExtension, SignedExtra,
+};
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
 use sunshine_crypto::keystore::{Keystore, KeystoreLocked};
 use sunshine_crypto::secrecy::SecretString;
@@ -19,28 +21,28 @@ use sunshine_keystore::Keystore as KeybaseKeystore;
 pub type OffchainStoreImpl = ipfs_embed::Store;
 pub type KeystoreImpl<K> = sunshine_keystore::Keystore<K>;
 
-pub struct GenericClient<R: Runtime, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
+pub struct GenericClient<N: NodeConfig, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
     pub(crate) keystore: KS,
     pub(crate) keychain: KeyChain,
-    pub(crate) signer: Option<GenericSigner<R, K>>,
-    pub(crate) chain_client: substrate_subxt::Client<R>,
+    pub(crate) signer: Option<GenericSigner<N::Runtime, K>>,
+    pub(crate) chain_client: substrate_subxt::Client<N::Runtime>,
     pub(crate) offchain_client: O,
 }
 
 #[async_trait]
-impl<R, K, KS, O> Client<R> for GenericClient<R, K, KS, O>
+impl<N, K, KS, O> Client<N::Runtime> for GenericClient<N, K, KS, O>
 where
-    R: Runtime,
-    R::AccountId: Into<R::Address>,
-    <<R::Extra as SignedExtra<R>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
-    <R::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
+    N: NodeConfig,
+    <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
+    <<<N::Runtime as Runtime>::Extra as SignedExtra<N::Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+    <<N::Runtime as Runtime>::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
         + TryInto<<K::Pair as Pair>::Public>
-        + IdentifyAccount<AccountId = R::AccountId>
+        + IdentifyAccount<AccountId = <N::Runtime as System>::AccountId>
         + Clone
         + Send
         + Sync,
     K: KeyType,
-    <K::Pair as Pair>::Signature: Into<R::Signature>,
+    <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
     KS: Keystore<K>,
     O: Send + Sync,
 {
@@ -64,17 +66,17 @@ where
         &mut self.keychain
     }
 
-    fn signer(&self) -> Result<&dyn Signer<R>> {
+    fn signer(&self) -> Result<&dyn Signer<N::Runtime>> {
         let signer_ref = self.signer.as_ref().ok_or(KeystoreLocked)?;
         Ok(signer_ref as _)
     }
 
-    fn signer_mut(&mut self) -> Result<&mut dyn Signer<R>> {
+    fn signer_mut(&mut self) -> Result<&mut dyn Signer<N::Runtime>> {
         let signer_ref = self.signer.as_mut().ok_or(KeystoreLocked)?;
         Ok(signer_ref as _)
     }
 
-    fn chain_signer<'a>(&'a self) -> Result<GenericSubxtSigner<'a, R>> {
+    fn chain_signer<'a>(&'a self) -> Result<GenericSubxtSigner<'a, N::Runtime>> {
         Ok(GenericSubxtSigner(self.signer()?))
     }
 
@@ -104,7 +106,7 @@ where
         Ok(())
     }
 
-    fn chain_client(&self) -> &substrate_subxt::Client<R> {
+    fn chain_client(&self) -> &substrate_subxt::Client<N::Runtime> {
         &self.chain_client
     }
 
@@ -113,22 +115,22 @@ where
     }
 }
 
-impl<R, K, O: From<OffchainStoreImpl>> GenericClient<R, K, KeybaseKeystore<K>, O>
+impl<N, K, O: From<OffchainStoreImpl>> GenericClient<N, K, KeybaseKeystore<K>, O>
 where
-    R: Runtime,
-    R::AccountId: Into<R::Address>,
-    <<R::Extra as SignedExtra<R>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
-    <R::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
+    N: NodeConfig,
+    <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
+    <<<N::Runtime as Runtime>::Extra as SignedExtra<N::Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+    <<N::Runtime as Runtime>::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
         + TryInto<<K::Pair as Pair>::Public>
-        + IdentifyAccount<AccountId = R::AccountId>
+        + IdentifyAccount<AccountId = <N::Runtime as System>::AccountId>
         + Clone
         + Send
         + Sync,
     K: KeyType,
-    <K::Pair as Pair>::Signature: Into<R::Signature>,
+    <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
     O: Send + Sync,
 {
-    pub async fn new<N: NodeConfig<Runtime = R>>(
+    pub async fn new(
         root: &Path,
         chain_spec: Option<&Path>,
     ) -> Result<Self> {

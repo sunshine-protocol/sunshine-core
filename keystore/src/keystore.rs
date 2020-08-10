@@ -85,6 +85,11 @@ impl<K: KeyType> Keystore<K> {
         Ok(())
     }
 
+    /// Returns if the keystore is initialized.
+    pub async fn is_initialized(&self) -> Result<bool> {
+        Ok(self.read_gen().await?.is_initialized().await)
+    }
+
     /// Sets the device key.
     pub async fn set_device_key(
         &self,

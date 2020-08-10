@@ -9,6 +9,9 @@ use secrecy::SecretString;
 /// A generic keystore.
 #[async_trait]
 pub trait Keystore<K: KeyType>: Send + Sync {
+    /// Checks if the keystore is initialized.
+    async fn is_initialized(&self) -> Result<bool>;
+
     /// Sets the key of the keystore.
     ///
     /// If the force flag is false it will return a `KeystoreInitialized` error
@@ -54,6 +57,10 @@ pub mod mock {
 
     #[async_trait]
     impl<K: KeyType> Keystore<K> for MemKeystore<K> {
+        async fn is_initialized(&self) -> Result<bool> {
+            Ok(self.keystore.is_some())
+        }
+
         async fn set_key(
             &mut self,
             key: &TypedPair<K>,

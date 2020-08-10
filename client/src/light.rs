@@ -9,6 +9,11 @@ use std::sync::Arc;
 use substrate_subxt::client::{
     DatabaseConfig, KeystoreConfig, Role, SubxtClient, SubxtClientConfig,
 };
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+#[error("{0}")]
+pub struct ServiceError(String);
 
 pub async fn build_light_client<N: NodeConfig>(
     tree: Tree,
@@ -28,7 +33,7 @@ pub async fn build_light_client<N: NodeConfig>(
         enable_telemetry: true,
     }
     .to_service_config();
-    let (task_manager, rpc) = N::new_light(config)?;
+    let (task_manager, rpc) = N::new_light(config).map_err(|e| ServiceError(format!("{}", e)))?;
     Ok((SubxtClient::new(task_manager, rpc), chain_spec))
 }
 

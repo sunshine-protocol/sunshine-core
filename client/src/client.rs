@@ -1,3 +1,4 @@
+pub use crate::light::ServiceError;
 use crate::{Client, NodeConfig};
 use anyhow::Result;
 use async_trait::async_trait;

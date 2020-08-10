@@ -84,7 +84,9 @@ pub trait Client<R: Runtime>: Send + Sync {
     fn offchain_client(&self) -> &Self::OffchainClient;
 }
 
-use sc_service::{ChainSpec, Configuration, RpcHandlers, TaskManager};
+pub use sc_service::{
+    error::Error as ScServiceError, ChainSpec, Configuration, RpcHandlers, TaskManager,
+};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -99,10 +101,14 @@ pub trait NodeConfig {
     fn chain_spec_from_json_bytes(
         json: Vec<u8>,
     ) -> std::result::Result<Self::ChainSpec, ChainSpecError>;
-    fn new_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>)>;
-    fn new_full(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>)>;
+    fn new_light(
+        config: Configuration,
+    ) -> core::result::Result<(TaskManager, Arc<RpcHandlers>), ScServiceError>;
+    fn new_full(
+        config: Configuration,
+    ) -> core::result::Result<(TaskManager, Arc<RpcHandlers>), ScServiceError>;
 }
 
 #[derive(Debug, Error)]
 #[error("Invalid chain spec: {0}")]
-pub struct ChainSpecError(String);
+pub struct ChainSpecError(pub String);

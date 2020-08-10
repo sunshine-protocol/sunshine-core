@@ -8,22 +8,14 @@ use secrecy::SecretString;
 
 /// A generic keystore.
 #[async_trait]
-pub trait Keystore: Send + Sync {
-    /// The key type stored in the keystore.
-    type KeyType: KeyType;
-
-    /// Returns the key from the keystore.
-    ///
-    /// If the keystore is locked it will return a `KeystoreLocked` error.
-    async fn get_key(&self) -> Result<TypedPair<Self::KeyType>>;
-
+pub trait Keystore<K: KeyType>: Send + Sync {
     /// Sets the key of the keystore.
     ///
     /// If the force flag is false it will return a `KeystoreInitialized` error
     /// if the keystore is initialized. Otherwise it will overwrite the key.
     async fn set_key(
         &mut self,
-        key: &TypedPair<Self::KeyType>,
+        key: &TypedPair<K>,
         password: &SecretString,
         force: bool,
     ) -> Result<()>;
@@ -38,14 +30,13 @@ pub trait Keystore: Send + Sync {
     /// If the keystore is uninitialized it will return a `KeystoreUninitialized`
     /// error and if the password doesn't match it will return a `PasswordMissmatch`
     /// error.
-    async fn unlock(&mut self, password: &SecretString) -> Result<()>;
+    async fn unlock(&mut self, password: &SecretString) -> Result<TypedPair<K>>;
 }
 
 #[cfg(any(test, feature = "mock"))]
 pub mod mock {
     use super::*;
     use secrecy::ExposeSecret;
-    use sp_keyring::AccountKeyring;
 
     pub struct MemKeystore<K: KeyType> {
         keystore: Option<(TypedPair<K>, SecretString)>,
@@ -59,28 +50,10 @@ pub mod mock {
                 key: None,
             }
         }
-
-        pub fn from_keyring(account: AccountKeyring) -> Self {
-            let key = TypedPair::from_suri(&account.to_seed()).expect("Well formed suri; qed");
-            Self {
-                keystore: None,
-                key: Some(key),
-            }
-        }
     }
 
     #[async_trait]
-    impl<K: KeyType> Keystore for MemKeystore<K> {
-        type KeyType = K;
-
-        async fn get_key(&self) -> Result<TypedPair<K>> {
-            if let Some(key) = self.key.clone() {
-                Ok(key)
-            } else {
-                Err(KeystoreLocked.into())
-            }
-        }
-
+    impl<K: KeyType> Keystore<K> for MemKeystore<K> {
         async fn set_key(
             &mut self,
             key: &TypedPair<K>,
@@ -100,11 +73,11 @@ pub mod mock {
             Ok(())
         }
 
-        async fn unlock(&mut self, password: &SecretString) -> Result<()> {
+        async fn unlock(&mut self, password: &SecretString) -> Result<TypedPair<K>> {
             if let Some((key, pass)) = self.keystore.as_ref() {
                 if password.expose_secret() == pass.expose_secret() {
                     self.key = Some(key.clone());
-                    Ok(())
+                    Ok(key.clone())
                 } else {
                     Err(PasswordMissmatch.into())
                 }
@@ -135,14 +108,17 @@ mod tests {
 
     #[async_std::test]
     async fn test_flow() {
-        let keystore = MemKeystore::<DeviceKey>::from_keyring(AccountKeyring::Alice);
-        let key = keystore.get_key().await.unwrap();
+        let key = TypedPair::<DeviceKey>::generate().await;
+        let password = SecretString::new("password".to_string());
+        let mut keystore = MemKeystore::new();
+        keystore.set_key(&key, &password, false).await.unwrap();
+
         let mut chain = KeyChain::new();
-        chain.insert(key);
+        chain.insert(key.clone());
         let public = TypedPublic::<DeviceKey>::new(AccountKeyring::Bob.public());
         chain.insert_public(public);
 
-        let signer = GenericSigner::<DefaultNodeRuntime, DeviceKey>::new(chain.get().unwrap());
+        let signer = GenericSigner::<DefaultNodeRuntime, DeviceKey>::new(key);
         let _secret = signer
             .diffie_hellman(&AccountKeyring::Bob.public().into())
             .unwrap();

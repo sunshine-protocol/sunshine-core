@@ -202,6 +202,10 @@ impl KeyChain {
             .map(|seed| TypedPair::from_seed(seed.clone()))
     }
 
+    pub fn remove<K: KeyType>(&mut self) {
+        self.keys.remove(&K::KEY_TYPE);
+    }
+
     pub fn insert_public<T: KeyType>(&mut self, public: TypedPublic<T>) {
         let group = self.public.entry(T::KEY_TYPE).or_default();
         group.insert(public.encode());

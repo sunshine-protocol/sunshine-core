@@ -1,4 +1,6 @@
-pub use {allo_isolate, async_std, log, once_cell::sync::OnceCell};
+pub use {allo_isolate, async_std, log, once_cell::sync::OnceCell, crate::error::LastError};
+
+mod error;
 
 /// A simple macro to match on a result and if there is an error it returns -1 or your custom error
 #[doc(hidden)]

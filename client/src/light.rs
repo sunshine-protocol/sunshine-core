@@ -1,4 +1,4 @@
-use crate::NodeConfig;
+use crate::node::NodeConfig;
 use anyhow::Result;
 use sled::transaction::TransactionError;
 use sled::Tree;

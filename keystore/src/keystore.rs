@@ -101,11 +101,7 @@ impl<K: KeyType> Keystore<K> {
     }
 
     /// Provisions the keystore.
-    pub async fn provision_device_key(
-        &self,
-        password: &Password,
-        gen: u16,
-    ) -> Result<TypedPair<K>> {
+    pub async fn provision_device(&self, password: &Password, gen: u16) -> Result<TypedPair<K>> {
         let device_key = TypedPair::generate().await;
         self.create_gen(&device_key, password, gen).await?;
         Ok(device_key)

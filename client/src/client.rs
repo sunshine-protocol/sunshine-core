@@ -1,5 +1,6 @@
 pub use crate::light::ServiceError;
-use crate::{Client, NodeConfig};
+use crate::node::NodeConfig;
+use crate::Client;
 use anyhow::Result;
 use async_trait::async_trait;
 use ipfs_embed::{Config, Store};
@@ -14,6 +15,9 @@ use sunshine_crypto::keystore::{Keystore, KeystoreLocked};
 use sunshine_crypto::secrecy::SecretString;
 use sunshine_crypto::signer::{GenericSigner, GenericSubxtSigner, Signer};
 use sunshine_keystore::Keystore as KeybaseKeystore;
+
+pub type OffchainStoreImpl = ipfs_embed::Store;
+pub type KeystoreImpl<K> = sunshine_keystore::Keystore<K>;
 
 pub struct GenericClient<R: Runtime, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
     pub(crate) keystore: KS,
@@ -109,7 +113,7 @@ where
     }
 }
 
-impl<R, K, O: From<Store>> GenericClient<R, K, KeybaseKeystore<K>, O>
+impl<R, K, O: From<OffchainStoreImpl>> GenericClient<R, K, KeybaseKeystore<K>, O>
 where
     R: Runtime,
     R::AccountId: Into<R::Address>,
@@ -156,10 +160,26 @@ where
         let store = Store::new(config)?;
         let offchain_client = O::from(store);
 
+        let keystore = KeystoreImpl::<K>::new(root.join("keystore"));
+        let mut keychain = KeyChain::new();
+        let signer = match keystore.device_key().await {
+            Ok(key) => {
+                keychain.insert(key.clone());
+                Some(GenericSigner::new(key))
+            }
+            Err(err) => {
+                if err.downcast_ref::<KeystoreLocked>().is_some() {
+                    None
+                } else {
+                    return Err(err);
+                }
+            }
+        };
+
         Ok(Self {
-            keystore: KeybaseKeystore::new(root.join("keystore")),
-            keychain: KeyChain::new(),
-            signer: None,
+            keystore,
+            keychain,
+            signer,
             chain_client,
             offchain_client,
         })

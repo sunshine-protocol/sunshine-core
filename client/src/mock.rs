@@ -1,5 +1,6 @@
 use crate::client::GenericClient;
-use crate::{Client, NodeConfig};
+use crate::node::NodeConfig;
+use crate::Client;
 use libipld::mem::MemStore;
 use sp_core::Pair;
 pub use sp_keyring::AccountKeyring;
@@ -10,10 +11,11 @@ use substrate_subxt::client::{
 };
 use substrate_subxt::{sp_core, sp_runtime, ClientBuilder, Runtime, SignedExtension, SignedExtra};
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
-use sunshine_crypto::keystore::mock::MemKeystore;
 use sunshine_crypto::secrecy::SecretString;
 pub use tempdir::TempDir;
 
+pub type OffchainStoreImpl = libipld::mem::MemStore;
+pub type KeystoreImpl<K> = sunshine_crypto::keystore::mock::MemKeystore<K>;
 pub type TestNode = jsonrpsee::Client;
 
 pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
@@ -39,7 +41,7 @@ pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
     (client, tmp)
 }
 
-impl<R, K, O: From<MemStore>> GenericClient<R, K, MemKeystore<K>, O>
+impl<R, K, O: From<MemStore>> GenericClient<R, K, KeystoreImpl<K>, O>
 where
     R: Runtime,
     R::AccountId: Into<R::Address>,
@@ -56,7 +58,7 @@ where
 {
     pub async fn mock(test_node: &TestNode, account: AccountKeyring) -> Self {
         let mut me = Self {
-            keystore: MemKeystore::new(),
+            keystore: KeystoreImpl::<K>::new(),
             keychain: KeyChain::new(),
             signer: None,
             chain_client: ClientBuilder::new()
@@ -64,11 +66,49 @@ where
                 .build()
                 .await
                 .unwrap(),
-            offchain_client: O::from(MemStore::default()),
+            offchain_client: O::from(OffchainStoreImpl::default()),
         };
         let key = TypedPair::from_suri(&account.to_seed()).unwrap();
         let password = SecretString::new("password".to_string());
         me.set_key(key, &password, false).await.unwrap();
         me
+    }
+}
+
+impl<R, K, O: From<MemStore>> GenericClient<R, K, crate::client::KeystoreImpl<K>, O>
+where
+    R: Runtime,
+    R::AccountId: Into<R::Address>,
+    <<R::Extra as SignedExtra<R>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+    <R::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
+        + TryInto<<K::Pair as Pair>::Public>
+        + IdentifyAccount<AccountId = R::AccountId>
+        + Clone
+        + Send
+        + Sync,
+    K: KeyType,
+    <K::Pair as Pair>::Signature: Into<R::Signature>,
+    O: Send + Sync,
+{
+    pub async fn mock_with_keystore(
+        test_node: &TestNode,
+        account: AccountKeyring,
+    ) -> (Self, TempDir) {
+        let tmp = TempDir::new("sunshine-keystore").unwrap();
+        let mut me = Self {
+            keystore: crate::client::KeystoreImpl::<K>::new(tmp.path()),
+            keychain: KeyChain::new(),
+            signer: None,
+            chain_client: ClientBuilder::new()
+                .set_client(test_node.clone())
+                .build()
+                .await
+                .unwrap(),
+            offchain_client: O::from(OffchainStoreImpl::default()),
+        };
+        let key = TypedPair::from_suri(&account.to_seed()).unwrap();
+        let password = SecretString::new("password".to_string());
+        me.set_key(key, &password, false).await.unwrap();
+        (me, tmp)
     }
 }

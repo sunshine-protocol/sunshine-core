@@ -6,14 +6,14 @@ pub use sunshine_crypto::keystore::{Keystore, KeystoreLocked};
 pub use sunshine_crypto::secrecy::SecretString;
 pub use sunshine_crypto::signer::Signer;
 pub use sunshine_keystore as keystore;
-pub use sunshine_pallet_utils::cid;
-pub use sunshine_pallet_utils::hasher::Blake2Hasher;
+pub use sunshine_pallet_utils::*;
 
 pub mod block;
 pub mod client;
 mod light;
 #[cfg(feature = "mock")]
 pub mod mock;
+pub mod node;
 
 use substrate_subxt::Runtime;
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
@@ -83,32 +83,3 @@ pub trait Client<R: Runtime>: Send + Sync {
     /// Returns a reference to the offchain client.
     fn offchain_client(&self) -> &Self::OffchainClient;
 }
-
-pub use sc_service::{
-    error::Error as ScServiceError, ChainSpec, Configuration, RpcHandlers, TaskManager,
-};
-use std::sync::Arc;
-use thiserror::Error;
-
-pub trait NodeConfig {
-    type ChainSpec: ChainSpec + Clone + 'static;
-    type Runtime: Runtime + 'static;
-    fn impl_name() -> &'static str;
-    fn impl_version() -> &'static str;
-    fn author() -> &'static str;
-    fn copyright_start_year() -> i32;
-    fn chain_spec_dev() -> Self::ChainSpec;
-    fn chain_spec_from_json_bytes(
-        json: Vec<u8>,
-    ) -> std::result::Result<Self::ChainSpec, ChainSpecError>;
-    fn new_light(
-        config: Configuration,
-    ) -> core::result::Result<(TaskManager, Arc<RpcHandlers>), ScServiceError>;
-    fn new_full(
-        config: Configuration,
-    ) -> core::result::Result<(TaskManager, Arc<RpcHandlers>), ScServiceError>;
-}
-
-#[derive(Debug, Error)]
-#[error("Invalid chain spec: {0}")]
-pub struct ChainSpecError(pub String);

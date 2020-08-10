@@ -9,7 +9,7 @@ aead = "0.2.0"
 anyhow = "1.0.32"
 async-std = { version = "1.6.2", features = ["unstable"] }
 async-trait = "0.1.36"
-bip39 = "1.0.0-rc1"
+bip39 = { version = "1.0.0-rc1", features = ["rand"] }
 blake2-rfc = "0.2.18"
 curve25519-dalek = "2.1.0"
 ed25519-dalek = "1.0.0-pre.4"

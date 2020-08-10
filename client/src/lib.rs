@@ -1,16 +1,15 @@
-pub use anyhow as error;
-use async_trait::async_trait;
-pub use substrate_subxt as subxt;
+pub use anyhow::{Error, Result};
+pub use async_trait::async_trait;
 pub use sunshine_codec as codec;
 pub use sunshine_crypto as crypto;
 pub use sunshine_pallet_utils::cid;
 pub use sunshine_pallet_utils::hasher::Blake2Hasher;
 
-use anyhow::Result;
 use parity_scale_codec::{Decode, Encode};
 use substrate_subxt::Runtime;
-use sunshine_codec::{BlockBuilder, Error, Hasher, OffchainBlock, TreeDecode, TreeEncode};
+use sunshine_codec::{BlockBuilder, Hasher, OffchainBlock, TreeDecode, TreeEncode};
 pub use sunshine_crypto::keystore::Keystore;
+use sunshine_crypto::signer::GenericSubxtSigner;
 pub use sunshine_crypto::signer::Signer;
 
 /// The client trait.
@@ -33,6 +32,11 @@ pub trait Client<R: Runtime>: Send + Sync {
 
     /// Returns a mutable reference to the signer.
     fn signer_mut(&mut self) -> Result<&mut dyn Signer<R>>;
+
+    /// Returns a subxt signer.
+    fn chain_signer<'a>(&'a self) -> Result<GenericSubxtSigner<'a, R>> {
+        Ok(GenericSubxtSigner(self.signer()?))
+    }
 
     /// Returns a reference to the subxt client.
     fn chain_client(&self) -> &substrate_subxt::Client<R>;
@@ -63,7 +67,7 @@ impl<T: Decode, H: Hasher> TreeDecode<H> for GenericBlock<T, H>
 where
     H::Out: Decode + 'static,
 {
-    fn decode_tree(block: &OffchainBlock<H>, _prefix: &[u8]) -> Result<Self, Error<H>> {
+    fn decode_tree(block: &OffchainBlock<H>, _prefix: &[u8]) -> Result<Self> {
         Ok(Self {
             number: block.get(b"number")?,
             ancestor: block.get(b"ancestor")?,

@@ -8,6 +8,7 @@ pub mod rand;
 pub mod secret_box;
 pub mod secret_file;
 pub mod signer;
+pub mod ss58;
 
 pub use bip39;
 pub use generic_array::typenum;

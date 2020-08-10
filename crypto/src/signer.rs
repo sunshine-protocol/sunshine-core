@@ -15,7 +15,7 @@ use substrate_subxt::{
 use zeroize::Zeroize;
 
 /// Signer.
-pub trait Signer<T: Runtime>: substrate_subxt::Signer<T> + Send + Sync {
+pub trait Signer<T: Runtime>: Send + Sync {
     /// Returns the public key.
     fn public(&self) -> &<T::Signature as Verify>::Signer;
 
@@ -134,31 +134,22 @@ where
     }
 }
 
-impl<T: Runtime, K: KeyType> substrate_subxt::Signer<T> for GenericSigner<T, K>
-where
-    T::AccountId: Into<T::Address>,
-    <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
-    <T::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
-        + TryInto<<K::Pair as Pair>::Public>
-        + IdentifyAccount<AccountId = T::AccountId>
-        + Clone
-        + Send
-        + Sync,
-    <K::Pair as Pair>::Signature: Into<T::Signature>,
-{
+pub struct GenericSubxtSigner<'a, T: Runtime>(pub &'a dyn Signer<T>);
+
+impl<'a, T: Runtime> substrate_subxt::Signer<T> for GenericSubxtSigner<'a, T> {
     fn account_id(&self) -> &T::AccountId {
-        Signer::account_id(self)
+        self.0.account_id()
     }
 
     fn nonce(&self) -> Option<T::Index> {
-        Signer::nonce(self)
+        self.0.nonce()
     }
 
     fn sign(
         &self,
         extrinsic: SignedPayload<T>,
     ) -> Pin<Box<dyn Future<Output = Result<UncheckedExtrinsic<T>, String>> + Send + Sync>> {
-        let extrinsic = Signer::sign_extrinsic(self, extrinsic);
+        let extrinsic = self.0.sign_extrinsic(extrinsic);
         Box::pin(async move { Ok(extrinsic) })
     }
 }

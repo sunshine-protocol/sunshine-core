@@ -1,6 +1,7 @@
+use anyhow::Result;
 pub use hash_db::Hasher;
 use parity_scale_codec::{Decode, Encode};
-use sp_trie::{Layout, MemoryDB, TrieConfiguration, TrieDBMut, TrieError, TrieHash, TrieMut};
+use sp_trie::{Layout, MemoryDB, TrieConfiguration, TrieDBMut, TrieHash, TrieMut};
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use thiserror::Error;
@@ -26,11 +27,11 @@ where
         (&self.root, self.tree.encode())
     }
 
-    pub fn decode(expected: &H::Out, mut bytes: &[u8]) -> Result<Self, Error<H>> {
+    pub fn decode(expected: &H::Out, mut bytes: &[u8]) -> Result<Self> {
         let tree = Decode::decode(&mut bytes)?;
         let root = Layout::<H>::trie_root(&tree);
         if root != *expected {
-            return Err(Error::RootMissmatch);
+            return Err(TrieError::RootMissmatch.into());
         }
         Ok(Self {
             _marker: PhantomData,
@@ -39,10 +40,10 @@ where
         })
     }
 
-    pub fn get<K: Encode + ?Sized, V: Decode>(&self, k: &K) -> Result<V, Error<H>> {
+    pub fn get<K: Encode + ?Sized, V: Decode>(&self, k: &K) -> Result<V> {
         let bytes = k
             .using_encoded(|key| self.tree.get(key))
-            .ok_or(Error::MissingKey)?;
+            .ok_or(TrieError::MissingKey)?;
         Ok(V::decode(&mut &bytes[..])?)
     }
 
@@ -76,12 +77,13 @@ pub struct SealedBlock<H: Hasher> {
 }
 
 impl<H: Hasher> SealedBlock<H> {
-    pub fn verify_proof(&self) -> Result<(), VerifyError<H>> {
-        sp_trie::verify_trie_proof::<Layout<H>, _, _, _>(
+    pub fn verify_proof(&self) -> Result<()> {
+        Ok(sp_trie::verify_trie_proof::<Layout<H>, _, _, _>(
             &self.offchain.root,
             &self.proof,
             &self.proof_data,
         )
+        .map_err(|_| TrieError::InvalidProof)?)
     }
 }
 
@@ -99,10 +101,7 @@ impl<H: Hasher> Default for BlockBuilder<H> {
     }
 }
 
-impl<H: Hasher> BlockBuilder<H>
-where
-    H::Out: 'static,
-{
+impl<H: Hasher> BlockBuilder<H> {
     pub fn new() -> Self {
         Default::default()
     }
@@ -111,7 +110,7 @@ where
         self.tree.insert(k.encode(), (Some(v.encode()), proof));
     }
 
-    pub fn seal(self) -> Result<SealedBlock<H>, Error<H>> {
+    pub fn seal(self) -> Result<SealedBlock<H>> {
         let mut db = MemoryDB::default();
         let mut root = TrieHash::<Layout<H>>::default();
         let mut trie = TrieDBMut::<Layout<H>>::new(&mut db, &mut root);
@@ -122,7 +121,8 @@ where
                 proof_data.push((k.clone(), v.clone()));
             }
             if let Some(v) = v {
-                trie.insert(&k, &v)?;
+                trie.insert(&k, &v)
+                    .map_err(|_| TrieError::InsertionFailure)?;
                 tree.insert(k, v);
             }
         }
@@ -132,7 +132,8 @@ where
             &db,
             root,
             proof_data.iter().map(|(k, _)| k),
-        )?;
+        )
+        .expect("provided valid data; qed");
 
         Ok(SealedBlock {
             offchain: OffchainBlock {
@@ -146,34 +147,22 @@ where
     }
 }
 
-#[derive(Error)]
-pub enum Error<H: Hasher>
-where
-    H::Out: 'static,
-{
-    #[error(transparent)]
-    Decode(#[from] parity_scale_codec::Error),
+#[derive(Debug, Error)]
+pub enum TrieError {
+    #[error("failed to insert key value pair")]
+    InsertionFailure,
     #[error("missing key")]
     MissingKey,
-    #[error(transparent)]
-    Trie(#[from] Box<TrieError<Layout<H>>>),
     #[error("root missmatch")]
     RootMissmatch,
+    #[error("invalid proof")]
+    InvalidProof,
 }
 
-impl<H: Hasher> std::fmt::Debug for Error<H> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
-pub trait TreeEncode<H: Hasher>
-where
-    H::Out: 'static,
-{
+pub trait TreeEncode<H: Hasher> {
     fn encode_tree(&self, block: &mut BlockBuilder<H>, prefix: &[u8], proof: bool);
 
-    fn seal(&self) -> Result<SealedBlock<H>, Error<H>> {
+    fn seal(&self) -> Result<SealedBlock<H>> {
         let mut block = BlockBuilder::new();
         self.encode_tree(&mut block, &[], false);
         block.seal()
@@ -189,13 +178,10 @@ where
     }
 }
 
-pub trait TreeDecode<H: Hasher>: Sized
-where
-    H::Out: 'static,
-{
-    fn decode_tree(block: &OffchainBlock<H>, prefix: &[u8]) -> Result<Self, Error<H>>;
+pub trait TreeDecode<H: Hasher>: Sized {
+    fn decode_tree(block: &OffchainBlock<H>, prefix: &[u8]) -> Result<Self>;
 
-    fn decode(block: &OffchainBlock<H>) -> Result<Self, Error<H>> {
+    fn decode(block: &OffchainBlock<H>) -> Result<Self> {
         Self::decode_tree(block, &[])
     }
 }
@@ -204,7 +190,7 @@ impl<T: Decode, H: Hasher> TreeDecode<H> for T
 where
     H::Out: 'static,
 {
-    fn decode_tree(block: &OffchainBlock<H>, prefix: &[u8]) -> Result<Self, Error<H>> {
+    fn decode_tree(block: &OffchainBlock<H>, prefix: &[u8]) -> Result<Self> {
         block.get(prefix)
     }
 }
@@ -275,10 +261,7 @@ mod tests {
     }
 
     impl TreeDecode<Blake2Hasher> for SetUserKey {
-        fn decode_tree(
-            block: &OffchainBlock<Blake2Hasher>,
-            prefix: &[u8],
-        ) -> Result<Self, Error<Blake2Hasher>> {
+        fn decode_tree(block: &OffchainBlock<Blake2Hasher>, prefix: &[u8]) -> Result<Self> {
             Ok(Self {
                 public_key: (prefix, b"public_key")
                     .using_encoded(|prefix| TreeDecode::decode_tree(block, prefix))?,
@@ -289,10 +272,7 @@ mod tests {
     }
 
     impl TreeDecode<Blake2Hasher> for Block {
-        fn decode_tree(
-            block: &OffchainBlock<Blake2Hasher>,
-            prefix: &[u8],
-        ) -> Result<Self, Error<Blake2Hasher>> {
+        fn decode_tree(block: &OffchainBlock<Blake2Hasher>, prefix: &[u8]) -> Result<Self> {
             Ok(Self {
                 number: (prefix, b"number")
                     .using_encoded(|prefix| TreeDecode::decode_tree(block, prefix))?,

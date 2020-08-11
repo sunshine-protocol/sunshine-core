@@ -46,6 +46,12 @@ pub mod mock {
         key: Option<TypedPair<K>>,
     }
 
+    impl<K: KeyType> Default for MemKeystore<K> {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl<K: KeyType> MemKeystore<K> {
         pub fn new() -> Self {
             Self {

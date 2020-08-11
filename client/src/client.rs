@@ -80,6 +80,7 @@ where
         Ok(GenericSubxtSigner(self.signer()?))
     }
 
+    #[allow(clippy::type_complexity)]
     async fn set_key(
         &mut self,
         key: TypedPair<Self::KeyType>,

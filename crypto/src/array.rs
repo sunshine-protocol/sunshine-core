@@ -19,6 +19,9 @@ impl<T: ArrayLength<u8> + Debug + Default + Eq + Send + Sync + 'static> Size for
 /// Safe to use for secrets. It is zeroized on drop and has a "safe" `Debug` implementation
 /// and comparisons happen in constant time.
 #[derive(Clone, Default, Hash)]
+// partial eq only makes sure the comparison is constant time, it doesn't change
+// the semantics.
+#[allow(clippy::derive_hash_xor_eq)]
 pub struct CryptoArray<S: Size>(GenericArray<u8, S>);
 
 impl<S: Size> core::fmt::Debug for CryptoArray<S> {
@@ -92,10 +95,10 @@ impl<S: Size> CryptoArray<S> {
     pub fn from_mnemonic(mnemonic: &bip39::Mnemonic) -> Result<Self, NotEnoughEntropy> {
         let mut res = Self::default();
         let entropy = mnemonic.to_entropy();
-        if entropy.len() < res.len() {
+        if entropy.len() < res.size() {
             return Err(NotEnoughEntropy);
         }
-        res.copy_from_slice(&entropy[..res.len()]);
+        res.copy_from_slice(&entropy[..res.size()]);
         Ok(res)
     }
 
@@ -103,7 +106,7 @@ impl<S: Size> CryptoArray<S> {
         self.as_mut().copy_from_slice(slice);
     }
 
-    pub fn len(&self) -> usize {
+    pub fn size(&self) -> usize {
         S::to_usize()
     }
 
@@ -111,7 +114,7 @@ impl<S: Size> CryptoArray<S> {
         let mut res = Self::default();
         let a = self.as_ref();
         let b = other.as_ref();
-        for i in 0..res.len() {
+        for i in 0..res.size() {
             res.as_mut()[i] = a[i] ^ b[i]
         }
         res

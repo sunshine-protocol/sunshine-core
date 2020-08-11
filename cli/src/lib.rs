@@ -8,7 +8,7 @@ use sunshine_client_utils::crypto::bip39::Mnemonic;
 use sunshine_client_utils::crypto::keychain::TypedPair;
 use sunshine_client_utils::crypto::keystore::{Keystore, KeystoreInitialized};
 use sunshine_client_utils::crypto::secrecy::{ExposeSecret, SecretString};
-pub use sunshine_client_utils::{Client, Result};
+pub use sunshine_client_utils::{Client, ConfigDirNotFound, Result};
 
 pub fn ask_for_new_password(length: u8) -> std::result::Result<SecretString, std::io::Error> {
     loop {

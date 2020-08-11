@@ -28,10 +28,10 @@ impl<K: KeyType> sunshine_crypto::keystore::Keystore<K> for Keystore<K> {
     }
 
     async fn lock(&mut self) -> Result<()> {
-        self.lock().await
+        Self::lock(self).await
     }
 
     async fn unlock(&mut self, password: &SecretString) -> Result<TypedPair<K>> {
-        self.unlock(password).await
+        Self::unlock(self, password).await
     }
 }

@@ -140,6 +140,10 @@ impl<S: Size> CryptoArray<S> {
         CipherText::encrypt(self, key).await
     }
 
+    pub fn array(&self) -> &GenericArray<u8, S> {
+        &self.0
+    }
+
     pub fn to_vec(&self) -> SecretVec<u8> {
         SecretVec::new(self.0.as_ref().to_vec())
     }

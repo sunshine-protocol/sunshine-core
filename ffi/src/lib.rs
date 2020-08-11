@@ -1,4 +1,4 @@
-pub use {allo_isolate, async_std, log, once_cell::sync::OnceCell, crate::error::LastError};
+pub use {crate::error::LastError, allo_isolate, async_std, log, once_cell::sync::OnceCell};
 
 mod error;
 

@@ -97,3 +97,9 @@ impl Mask {
         self.1
     }
 }
+
+impl AsRef<[u8; 32]> for Mask {
+    fn as_ref(&self) -> &[u8; 32] {
+        self.0.array().as_ref()
+    }
+}

@@ -30,7 +30,7 @@ pub async fn build_light_client<N: NodeConfig>(
         keystore: KeystoreConfig::InMemory,
         role: Role::Light,
         chain_spec: chain_spec.clone(),
-        enable_telemetry: true,
+        telemetry: Some(8000),
     }
     .to_service_config();
     let (task_manager, rpc) = N::new_light(config).map_err(|e| ServiceError(format!("{}", e)))?;

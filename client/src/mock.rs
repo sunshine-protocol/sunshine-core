@@ -21,7 +21,6 @@ pub type KeystoreImpl<K> = sunshine_crypto::keystore::mock::MemKeystore<K>;
 pub type TestNode = jsonrpsee::Client;
 
 pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
-    env_logger::try_init().ok();
     let tmp = TempDir::new("sunshine-identity-").expect("failed to create tempdir");
     let config = SubxtClientConfig {
         impl_name: N::impl_name(),
@@ -35,7 +34,7 @@ pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
         keystore: KeystoreConfig::InMemory,
         chain_spec: N::chain_spec_dev(),
         role: Role::Authority(AccountKeyring::Alice),
-        enable_telemetry: false,
+        telemetry: None,
     }
     .to_service_config();
     let (task_manager, rpc) = N::new_full(config).unwrap();

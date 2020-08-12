@@ -13,7 +13,7 @@ use substrate_subxt::{
     sp_core, sp_runtime, system::System, ClientBuilder, Runtime, SignedExtension, SignedExtra,
 };
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
-use sunshine_crypto::keystore::{Keystore, KeystoreLocked};
+use sunshine_crypto::keystore::{Keystore, KeystoreLocked, KeystoreUninitialized};
 use sunshine_crypto::secrecy::SecretString;
 use sunshine_crypto::signer::{GenericSigner, GenericSubxtSigner, Signer};
 use sunshine_keystore::Keystore as KeybaseKeystore;
@@ -171,7 +171,8 @@ where
                 Some(GenericSigner::new(key))
             }
             Err(err) => {
-                if err.downcast_ref::<KeystoreLocked>().is_some() {
+                if err.downcast_ref::<KeystoreLocked>().is_some() ||
+                    err.downcast_ref::<KeystoreUninitialized>().is_some() {
                     None
                 } else {
                     return Err(err);

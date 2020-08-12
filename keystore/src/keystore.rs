@@ -11,7 +11,7 @@ use async_std::prelude::*;
 use std::ffi::OsString;
 use std::marker::PhantomData;
 use sunshine_crypto::keychain::{KeyType, TypedPair};
-use sunshine_crypto::keystore::KeystoreInitialized;
+use sunshine_crypto::keystore::{KeystoreInitialized, KeystoreUninitialized};
 use sunshine_crypto::secrecy::SecretString;
 
 pub struct Keystore<K> {
@@ -41,7 +41,7 @@ impl<K: KeyType> Keystore<K> {
     }
 
     /// Returns the generation.
-    async fn read_gen(&self) -> Result<Generation<K>> {
+    async fn maybe_read_gen(&self) -> Result<Option<Generation<K>>> {
         let gen_link = self.path.join("gen");
         if gen_link.exists().await {
             let gen_dir = async_std::fs::read_link(gen_link).await?;
@@ -56,9 +56,18 @@ impl<K: KeyType> Keystore<K> {
             if gen_path != self.path {
                 return Err(KeystoreCorrupted.into());
             }
-            Ok(Generation::new(&self.path, gen))
+            Ok(Some(Generation::new(&self.path, gen)))
         } else {
-            Ok(Generation::new(&self.path, 0))
+            Ok(None)
+        }
+    }
+
+    /// Returns the generation.
+    async fn read_gen(&self) -> Result<Generation<K>> {
+        if let Some(gen) = self.maybe_read_gen().await? {
+            Ok(gen)
+        } else {
+            Err(KeystoreUninitialized.into())
         }
     }
 
@@ -87,7 +96,7 @@ impl<K: KeyType> Keystore<K> {
 
     /// Returns if the keystore is initialized.
     pub async fn is_initialized(&self) -> Result<bool> {
-        Ok(self.read_gen().await?.is_initialized().await)
+        Ok(self.maybe_read_gen().await?.is_some())
     }
 
     /// Sets the device key.
@@ -97,7 +106,7 @@ impl<K: KeyType> Keystore<K> {
         password: &SecretString,
         force: bool,
     ) -> Result<()> {
-        if !force && self.read_gen().await?.is_initialized().await {
+        if !force && self.is_initialized().await? {
             return Err(KeystoreInitialized.into());
         }
         self.create_gen(device_key, &Password::new(password), 0)

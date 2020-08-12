@@ -55,8 +55,8 @@ impl<'de> Deserialize<'de> for CidBytes {
 
             fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
                 let mut arr = [0; CID_LENGTH];
-                for i in 0..CID_LENGTH {
-                    arr[i] = seq
+                for (i, b) in arr.iter_mut().enumerate() {
+                    *b = seq
                         .next_element()?
                         .ok_or_else(|| de::Error::invalid_length(i, &self))?;
                 }

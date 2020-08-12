@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_std::path::{Path, PathBuf};
 use std::marker::PhantomData;
 use sunshine_crypto::keychain::{KeyType, TypedPair};
-use sunshine_crypto::keystore::{KeystoreLocked, KeystoreUninitialized, PasswordMissmatch};
+use sunshine_crypto::keystore::{KeystoreLocked, PasswordMissmatch};
 use sunshine_crypto::secret_file::SecretFile;
 
 pub struct Generation<K> {
@@ -40,11 +40,6 @@ impl<K: KeyType> Generation<K> {
     /// Returns the path of the generation.
     pub(crate) fn path(&self) -> &Path {
         &self.path
-    }
-
-    /// Checks if the keystore is initialized.
-    pub async fn is_initialized(&self) -> bool {
-        self.edk.exists().await
     }
 
     /// Initializes the keystore.
@@ -131,9 +126,6 @@ impl<K: KeyType> Generation<K> {
 
     /// Returns the public device key.
     pub async fn public(&self) -> Result<PublicDeviceKey> {
-        if !self.pdk.exists().await {
-            return Err(KeystoreUninitialized.into());
-        }
         Ok(self.pdk.read().await?)
     }
 

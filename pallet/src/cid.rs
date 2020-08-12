@@ -6,6 +6,7 @@ use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "std")]
 use serde::{
     de::{self, Visitor},
+    ser::SerializeTuple,
     Deserialize, Deserializer, Serialize, Serializer,
 };
 #[cfg(feature = "std")]
@@ -29,7 +30,11 @@ impl Serialize for CidBytes {
     where
         S: Serializer,
     {
-        self.0.as_ref().serialize(serializer)
+        let mut seq = serializer.serialize_tuple(self.0.len())?;
+        for elem in &self.0[..] {
+            seq.serialize_element(elem)?;
+        }
+        seq.end()
     }
 }
 
@@ -45,26 +50,20 @@ impl<'de> Deserialize<'de> for CidBytes {
             type Value = CidBytes;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("byte vector of length 38usize")
+                formatter.write_str("an array of length 38")
             }
 
-            fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
-            where
-                E: de::Error,
-            {
-                if value.len() == 38usize {
-                    let mut buf = [0; CID_LENGTH];
-                    buf.copy_from_slice(&value[..]);
-                    Ok(CidBytes(buf))
-                } else {
-                    Err(E::custom(format!(
-                        "byte vector len is {} dne 38",
-                        value.len()
-                    )))
+            fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let mut arr = [0; CID_LENGTH];
+                for i in 0..CID_LENGTH {
+                    arr[i] = seq
+                        .next_element()?
+                        .ok_or_else(|| de::Error::invalid_length(i, &self))?;
                 }
+                Ok(CidBytes(arr))
             }
         }
-        deserializer.deserialize_bytes(CidVisitor)
+        deserializer.deserialize_tuple(CID_LENGTH, CidVisitor)
     }
 }
 
@@ -127,6 +126,14 @@ mod tests {
         let cid = Cid::new_v1(Codec::Raw, hash);
         let bytes = CidBytes::from(&cid);
         let cid2 = bytes.to_cid().unwrap();
+        assert_eq!(cid, cid2);
+    }
+
+    #[test]
+    fn test_serde() {
+        let cid = CidBytes::default();
+        let bytes = serde_json::to_string(&cid).unwrap();
+        let cid2 = serde_json::from_str(&bytes).unwrap();
         assert_eq!(cid, cid2);
     }
 }

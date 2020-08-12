@@ -148,8 +148,8 @@ macro_rules! gen_ffi {
             let isolate = $crate::allo_isolate::Isolate::new(port);
             let t = isolate.task(async move {
                 let client = match chain_spec {
-                    Some(spec) => <$c>::new(&root, Some(&::std::path::PathBuf::from(spec)));
-                    None => <$c>::new(&root, None);
+                    Some(spec) => <$c>::new(&root, Some(&::std::path::PathBuf::from(spec))),
+                    None => <$c>::new(&root, None),
                 };
                 let client = client.await;
                 let client = $crate::result!(client, 0xdead >> 0x02);

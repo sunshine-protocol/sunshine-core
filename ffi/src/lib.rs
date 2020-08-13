@@ -150,7 +150,6 @@ macro_rules! gen_ffi {
             if CLIENT.get().is_some() {
                 return 0xdead >> 0x01;
             }
-            $crate::panic_hook!();
             let root = ::std::path::PathBuf::from(cstr!(path));
             let chain_spec = cstr!(chain_spec, allow_null);
             let url = cstr!(url, allow_null);
@@ -170,20 +169,4 @@ macro_rules! gen_ffi {
             1
         }
     }
-}
-
-#[doc(hidden)]
-#[macro_export]
-macro_rules! panic_hook {
-    () => {
-        ::std::panic::set_hook(::std::boxed::Box::new(|panic_info| {
-            $crate::log::error!("🔥 !! PANIC !! 🔥");
-            if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
-                $crate::log::error!("{}", s);
-                println!("panic occurred: {:?}", s);
-            } else {
-                println!("panic occurred but no info ...errr");
-            }
-        }));
-    };
 }

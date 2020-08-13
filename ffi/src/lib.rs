@@ -92,7 +92,7 @@ macro_rules! gen_ffi {
                     Err(e) => {
                         $crate::log::error!("🔥 PANIC WHILE CALLING {}", stringify!($struct::$method));
                         if let Some(s) = e.downcast_ref::<&str>() {
-                            $crate::log::error!("{}", e);
+                            $crate::log::error!("{}", s);
                          } else {
                             $crate::log::error!("no information provided for this panic...errr");
                          }
@@ -182,7 +182,7 @@ macro_rules! gen_ffi {
                     Err(e) => {
                         $crate::log::error!("🔥 PANIC WHILE CALLING client_init");
                         if let Some(s) = e.downcast_ref::<&str>() {
-                            $crate::log::error!("{}", e);
+                            $crate::log::error!("{}", s);
                          } else {
                             $crate::log::error!("no information provided for this panic...errr");
                          }

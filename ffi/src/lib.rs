@@ -1,4 +1,6 @@
-pub use {crate::error::LastError, allo_isolate, async_std, log, once_cell::sync::OnceCell};
+pub use {
+    crate::error::LastError, allo_isolate, async_std, futures, log, once_cell::sync::OnceCell,
+};
 
 mod error;
 
@@ -80,10 +82,20 @@ macro_rules! gen_ffi {
             let client = $crate::static_client!();
             let ffi_struct = $struct::new(client);
             let t = isolate.task(async move {
-                match $struct::$method(&ffi_struct, $($param),*).await {
-                    Ok(v) => Some(v),
-                    Err(e) => {
+                use $crate::futures::future::FutureExt;
+                match $struct::$method(&ffi_struct, $($param),*).catch_unwind().await {
+                    Ok(Ok(v)) => Some(v),
+                    Ok(Err(e)) => {
                         $crate::log::error!("{:?}: {:?}", stringify!($struct::$method), e);
+                        None
+                    }
+                    Err(e) => {
+                        $crate::log::error!("🔥 PANIC WHILE CALLING {}", stringify!($struct::$method));
+                        if let Some(s) = e.downcast_ref::<&str>() {
+                            $crate::log::error!("{}", e);
+                         } else {
+                            $crate::log::error!("no information provided for this panic...errr");
+                         }
                         None
                     }
                 }
@@ -145,6 +157,7 @@ macro_rules! gen_ffi {
             chain_spec: *const ::std::os::raw::c_char,
             url: *const ::std::os::raw::c_char,
         ) -> i32 {
+            use $crate::futures::future::FutureExt;
             // check if we already created the client, and return `0xdead >> 0x01`
             // if it is already created to avoid any unwanted work
             if CLIENT.get().is_some() {
@@ -157,12 +170,25 @@ macro_rules! gen_ffi {
             let t = isolate.task(async move {
                 let client = match (chain_spec, url) {
                     // if we suplied both, use chain spec.
-                    (Some(spec), _) => <$c>::new(&root, ::std::path::PathBuf::from(spec).as_path()).await,
-                    (None, Some(rpc)) => <$c>::new(&root, rpc).await,
+                    (Some(spec), _) => <$c>::new(&root, ::std::path::PathBuf::from(spec).as_path()).catch_unwind().await,
+                    (None, Some(rpc)) => <$c>::new(&root, rpc).catch_unwind().await,
                     _ => return 0xdead >> 0x03,
                 };
-                let client = $crate::result!(client, 0xdead >> 0x02);
-                $crate::result!(CLIENT.set(RwLock::new(client)).map_err(|_| ()), 0xdead >> 0x01);
+                match client {
+                    Ok(client) => {
+                        let client = $crate::result!(client, 0xdead >> 0x02);
+                        $crate::result!(CLIENT.set(RwLock::new(client)).map_err(|_| ()), 0xdead >> 0x01);
+                    },
+                    Err(e) => {
+                        $crate::log::error!("🔥 PANIC WHILE CALLING client_init");
+                        if let Some(s) = e.downcast_ref::<&str>() {
+                            $crate::log::error!("{}", e);
+                         } else {
+                            $crate::log::error!("no information provided for this panic...errr");
+                         }
+                         return 0xdead >> 0x04;
+                    }
+                };
                 1
             });
             $crate::async_std::task::spawn(t);

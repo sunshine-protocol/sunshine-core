@@ -183,7 +183,7 @@ macro_rules! panic_hook {
                 $crate::log::error!("{}", s);
                 println!("panic occurred: {:?}", s);
             } else {
-                $crate::log::error!("no info provided for that panic", s);
+                $crate::log::error!("no info provided for that panic");
                 println!("panic occurred but no info ...errr");
             }
         }));

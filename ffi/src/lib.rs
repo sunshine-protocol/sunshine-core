@@ -150,6 +150,7 @@ macro_rules! gen_ffi {
             if CLIENT.get().is_some() {
                 return 0xdead >> 0x01;
             }
+            /// Setup a panic hook with the logger.
             $crate::panic_hook!();
             let root = ::std::path::PathBuf::from(cstr!(path));
             let chain_spec = cstr!(chain_spec, allow_null);
@@ -182,6 +183,7 @@ macro_rules! panic_hook {
                 $crate::log::error!("{}", s);
                 println!("panic occurred: {:?}", s);
             } else {
+                $crate::log::error!("no info provided for that panic", s);
                 println!("panic occurred but no info ...errr");
             }
         }));

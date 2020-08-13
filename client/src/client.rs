@@ -3,7 +3,7 @@ use crate::node::NodeConfig;
 use crate::Client;
 use anyhow::Result;
 use async_trait::async_trait;
-use ipfs_embed::{Config, Store};
+use ipfs_embed::{Config as OffchainConfig, Store as OffchainStore};
 use sc_service::ChainSpec;
 use sp_core::Pair;
 use sp_runtime::traits::{IdentifyAccount, Verify};
@@ -18,7 +18,7 @@ use sunshine_crypto::secrecy::SecretString;
 use sunshine_crypto::signer::{GenericSigner, GenericSubxtSigner, Signer};
 use sunshine_keystore::Keystore as KeybaseKeystore;
 
-pub type OffchainStoreImpl = ipfs_embed::Store;
+pub type OffchainStoreImpl = OffchainStore;
 pub type KeystoreImpl<K> = sunshine_keystore::Keystore<K>;
 
 pub struct GenericClient<N: NodeConfig, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
@@ -116,6 +116,23 @@ where
     }
 }
 
+pub enum Config<'a> {
+    Rpc { url: &'a str },
+    Light { chain_spec: &'a Path }
+}
+
+impl<'a> From<&'a str> for Config<'a> {
+    fn from(url: &'a str) -> Self {
+        Self::Rpc { url }
+    }
+}
+
+impl<'a> From<&'a Path> for Config<'a> {
+    fn from(chain_spec: &'a Path) -> Self {
+        Self::Light { chain_spec }
+    }
+}
+
 impl<N, K, O: From<OffchainStoreImpl>> GenericClient<N, K, KeybaseKeystore<K>, O>
 where
     N: NodeConfig,
@@ -131,28 +148,31 @@ where
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
     O: Send + Sync,
 {
-    pub async fn new(
+    pub async fn new<'a, C: Into<Config<'a>>>(
         root: &Path,
-        chain_spec: Option<&Path>,
+        config: C,
     ) -> Result<Self> {
         let db = sled::open(root.join("db"))?;
         let db_ipfs = db.open_tree("ipfs")?;
 
-        let (chain_client, chain_spec) = if let Some(chain_spec) = chain_spec {
-            let db_light = db.open_tree("substrate")?;
-            let (light_client, chain_spec) =
-                crate::light::build_light_client::<N>(db_light, chain_spec).await?;
-            let client = ClientBuilder::new()
-                .set_client(light_client)
-                .build()
-                .await?;
-            (client, Some(chain_spec))
-        } else {
-            let client = ClientBuilder::new().build().await?;
-            (client, None)
+        let (chain_client, chain_spec) = match config.into() {
+            Config::Light { chain_spec } => {
+                let db_light = db.open_tree("substrate")?;
+                let (light_client, chain_spec) =
+                    crate::light::build_light_client::<N>(db_light, chain_spec).await?;
+                let client = ClientBuilder::new()
+                    .set_client(light_client)
+                    .build()
+                    .await?;
+                (client, Some(chain_spec))
+            }
+            Config::Rpc { url } => {
+                let client = ClientBuilder::new().set_url(url).build().await?;
+                (client, None)
+            }
         };
 
-        let mut config = Config::new(db_ipfs, Default::default());
+        let mut config = OffchainConfig::new(db_ipfs, Default::default());
         if let Some(chain_spec) = chain_spec {
             config.network.boot_nodes = chain_spec
                 .boot_nodes()
@@ -160,7 +180,7 @@ where
                 .map(|x| (x.multiaddr.clone(), x.peer_id.clone()))
                 .collect();
         }
-        let store = Store::new(config)?;
+        let store = OffchainStore::new(config)?;
         let offchain_client = O::from(store);
 
         let keystore = KeystoreImpl::<K>::new(root.join("keystore"));

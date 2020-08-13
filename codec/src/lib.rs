@@ -328,7 +328,7 @@ mod tests {
 
         let proof = sp_trie::generate_trie_proof::<Layout<Blake2Hasher>, _, _, _>(
             &db,
-            root.clone(),
+            root,
             &[
                 &b"prev"[..],
                 &b"remove_device_key"[..],

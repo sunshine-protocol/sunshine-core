@@ -131,13 +131,20 @@ macro_rules! gen_ffi {
         /// cbindgen:ignore
         static CLIENT: $crate::OnceCell<RwLock<$c>> = $crate::OnceCell::new();
 
-        /// Setup the Sunshine Client using the provided path as the base path and with chainspec
+        /// Setup the Sunshine Client using the provided path as the base path and with chainspec.
         ///
         /// ### Safety
-        /// This assumes that the path and chain_spec is non-null c string.
+        /// This assumes that the path non-null c string.
+        /// chain_spec could be null.
+        /// url could also be null.
         #[allow(clippy::not_unsafe_ptr_arg_deref)]
         #[no_mangle]
-        pub extern "C" fn client_init(port: i64, path: *const ::std::os::raw::c_char, chain_spec: *const ::std::os::raw::c_char) -> i32 {
+        pub extern "C" fn client_init(
+            port: i64,
+            path: *const ::std::os::raw::c_char,
+            chain_spec: *const ::std::os::raw::c_char,
+            url: *const ::std::os::raw::c_char,
+        ) -> i32 {
             // check if we already created the client, and return `0xdead >> 0x01`
             // if it is already created to avoid any unwanted work
             if CLIENT.get().is_some() {
@@ -145,11 +152,14 @@ macro_rules! gen_ffi {
             }
             let root = ::std::path::PathBuf::from(cstr!(path));
             let chain_spec = cstr!(chain_spec, allow_null);
+            let url = cstr!(url, allow_null);
             let isolate = $crate::allo_isolate::Isolate::new(port);
             let t = isolate.task(async move {
-                let client = match chain_spec {
-                    Some(spec) => <$c>::new(&root, Some(&::std::path::PathBuf::from(spec))).await,
-                    None => <$c>::new(&root, None).await,
+                let client = match (chain_spec, url) {
+                    // if we suplied both, use chain spec.
+                    (Some(spec), _) => <$c>::new(&root, &::std::path::PathBuf::from(spec)).await,
+                    (None, Some(rpc)) => <$c>::new(&root, rpc).await,
+                    _ => return 0xdead >> 0x03,
                 };
                 let client = $crate::result!(client, 0xdead >> 0x02);
                 $crate::result!(CLIENT.set(RwLock::new(client)).map_err(|_| ()), 0xdead >> 0x01);

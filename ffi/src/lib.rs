@@ -181,15 +181,12 @@ macro_rules! panic_hook {
             $crate::log::error!("🔥 !! PANIC !! 🔥");
             if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
                 $crate::log::error!("{}", s);
-                if let Some(args) = panic_info.message() {
-                    $crate::log::error!("with {}", args);
-                }
                 if let Some(loc) = panic_info.location() {
                     $crate::log::error!("at {}", loc);
                 }
                 println!("panic occurred: {:?}", s);
             } else {
-                $crate::log::error!("no info provided for that panic");
+                $crate::log::error!("no info provided for that panic 😡");
                 println!("panic occurred but no info ...errr");
             }
         }));

@@ -157,7 +157,7 @@ macro_rules! gen_ffi {
             let t = isolate.task(async move {
                 let client = match (chain_spec, url) {
                     // if we suplied both, use chain spec.
-                    (Some(spec), _) => <$c>::new(&root, &::std::path::PathBuf::from(spec)).await,
+                    (Some(spec), _) => <$c>::new(&root, ::std::path::PathBuf::from(spec).as_path()).await,
                     (None, Some(rpc)) => <$c>::new(&root, rpc).await,
                     _ => return 0xdead >> 0x03,
                 };

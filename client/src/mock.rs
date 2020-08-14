@@ -27,9 +27,8 @@ pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
         impl_version: N::impl_version(),
         author: N::author(),
         copyright_start_year: N::copyright_start_year(),
-        db: DatabaseConfig::RocksDb {
+        db: DatabaseConfig::ParityDb {
             path: tmp.path().into(),
-            cache_size: 128,
         },
         keystore: KeystoreConfig::InMemory,
         chain_spec: N::chain_spec_dev(),

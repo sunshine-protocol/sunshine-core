@@ -1,11 +1,14 @@
+pub use sc_basic_authorship;
 pub use sc_client_api;
 pub use sc_consensus;
 pub use sc_consensus_aura;
 pub use sc_finality_grandpa;
 pub use sc_service;
 pub use sc_transaction_pool;
+pub use sp_consensus;
 pub use sp_consensus_aura;
 pub use sp_core;
+pub use sp_finality_grandpa;
 pub use sp_inherents;
 
 #[macro_export]
@@ -17,13 +20,17 @@ macro_rules! node_service {
         use std::sync::Arc;
         use std::time::Duration;
         use $crate::{
-            sc_client_api, sc_consensus, sc_consensus_aura, sc_finality_grandpa, sc_service,
-            sc_transaction_pool, sp_consensus_aura, sp_core, sp_inherents,
+            sc_basic_authorship, sc_client_api, sc_consensus, sc_consensus_aura,
+            sc_finality_grandpa, sc_service, sc_transaction_pool, sp_consensus, sp_consensus_aura,
+            sp_core, sp_finality_grandpa, sp_inherents,
         };
 
         type FullClient = sc_service::TFullClient<$block, $api, $executor>;
         type FullBackend = sc_service::TFullBackend<$block>;
         type FullSelectChain = sc_consensus::LongestChain<FullBackend, $block>;
+
+        pub type AuraId = sp_consensus_aura::sr25519::AuthorityId;
+        pub type GrandpaId = sp_finality_grandpa::AuthorityId;
 
         pub fn new_full_params(
             config: Configuration,

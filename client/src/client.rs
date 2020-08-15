@@ -118,7 +118,7 @@ where
 
 pub enum Config<'a> {
     Rpc { url: &'a str },
-    Light { chain_spec: &'a Path }
+    Light { chain_spec: &'a Path },
 }
 
 impl<'a> From<&'a str> for Config<'a> {

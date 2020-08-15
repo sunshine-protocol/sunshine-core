@@ -6,6 +6,7 @@ members = [
     "crypto",
     "ffi",
     "keystore",
+    "node",
     "pallet",
 ]
 

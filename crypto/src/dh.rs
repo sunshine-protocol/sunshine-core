@@ -16,14 +16,11 @@ impl DiffieHellman for sp_sr25519::Pair {
     type SharedSecret = [u8; 32];
 
     fn diffie_hellman(&self, public: &Self::Public) -> Self::SharedSecret {
-        let mut sk_bytes = self.as_ref().secret.to_bytes();
-        // Conversion due to incompatible schnorrkel versions.
-        let sk =
-            sr25519::SecretKey::from_bytes(sk_bytes.as_ref()).expect("key is correct size; qed");
-        sk_bytes.zeroize();
-        // Conversion due to incompatible schnorrkel versions.
         let pk = sr25519::PublicKey::from_bytes(public.as_ref()).expect("key is correct size; qed");
-        sk.aead32_unauthenticated::<ExtractKey>(&pk).0
+        self.as_ref()
+            .secret
+            .aead32_unauthenticated::<ExtractKey>(&pk)
+            .0
     }
 }
 

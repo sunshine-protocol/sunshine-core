@@ -1,5 +1,6 @@
 use crate::Result;
 use parity_scale_codec::{Decode, Encode};
+use libipld::codec::Codec;
 use sunshine_codec::{BlockBuilder, Hasher, OffchainBlock, TreeDecode, TreeEncode};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

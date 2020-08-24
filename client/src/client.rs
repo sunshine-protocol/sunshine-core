@@ -3,7 +3,7 @@ use crate::node::NodeConfig;
 use crate::Client;
 use anyhow::Result;
 use async_trait::async_trait;
-use ipfs_embed::{Config as OffchainConfig, Store as OffchainStore, PeerId};
+use ipfs_embed::{Config as OffchainConfig, PeerId, Store as OffchainStore};
 use sc_service::ChainSpec;
 use sp_core::Pair;
 use sp_runtime::traits::{IdentifyAccount, Verify};

@@ -1,7 +1,6 @@
 use crate::Result;
 use parity_scale_codec::{Decode, Encode};
-use libipld::codec::Codec;
-use sunshine_codec::{BlockBuilder, Hasher, OffchainBlock, TreeDecode, TreeEncode};
+use sunshine_codec::trie::{BlockBuilder, Hasher, OffchainBlock, TreeDecode, TreeEncode};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GenericBlock<T, H: Hasher> {
@@ -14,10 +13,10 @@ impl<T: Encode, H: Hasher> TreeEncode<H> for GenericBlock<T, H>
 where
     H::Out: Encode + 'static,
 {
-    fn encode_tree(&self, block: &mut BlockBuilder<H>, _prefix: &[u8], _proof: bool) {
-        block.insert(b"number", &self.number, true);
-        block.insert(b"ancestor", &self.ancestor, true);
-        block.insert(b"payload", &self.payload, false);
+    fn encode_tree(&self, block: &mut BlockBuilder<H>, _prefix: &str, _proof: bool) {
+        block.insert("number".into(), &self.number, true);
+        block.insert("ancestor".into(), &self.ancestor, true);
+        block.insert("payload".into(), &self.payload, false);
     }
 }
 
@@ -25,11 +24,11 @@ impl<T: Decode, H: Hasher> TreeDecode<H> for GenericBlock<T, H>
 where
     H::Out: Decode + 'static,
 {
-    fn decode_tree(block: &OffchainBlock<H>, _prefix: &[u8]) -> Result<Self> {
+    fn decode_tree(block: &OffchainBlock<H>, _prefix: &str) -> Result<Self> {
         Ok(Self {
-            number: block.get(b"number")?,
-            ancestor: block.get(b"ancestor")?,
-            payload: block.get(b"payload")?,
+            number: block.get("number")?,
+            ancestor: block.get("ancestor")?,
+            payload: block.get("payload")?,
         })
     }
 }

@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod cid;
+// TODO: remove cid
+//pub mod cid;
 pub mod hasher;

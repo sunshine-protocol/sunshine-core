@@ -15,3 +15,4 @@ substrate-subxt = { path = "../subxt" }
 libipld = { path = "../../ipld/rust-ipld" }
 ipfs-embed = { path = "../../ipld/ipfs-embed" }
 tiny-multihash = { path = "../../ipld/tiny-multihash" }
+tiny-cid = { path = "../../ipld/tiny-cid" }

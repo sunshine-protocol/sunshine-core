@@ -35,7 +35,7 @@ impl<S: Size, D: Digest<S>> From<TreeHash<D>> for GenericArray<u8, S> {
 
 impl<S: Size, D: Digest<S>> Digest<S> for TreeHash<D> {}
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct TreeHasher<H: multihash::Hasher>(H);
 
 impl<H: multihash::Hasher> hash_db::Hasher for TreeHasher<H>
@@ -84,7 +84,7 @@ pub const BLAKE2B_256: u64 = 0x00;
 pub const BLAKE2B_256_TREE: u64 = 0x01;
 
 // TODO fix in multihash
-type TreeHasherBlake2b256 = TreeHasher<multihash::Blake2b256>;
+pub type TreeHasherBlake2b256 = TreeHasher<multihash::Blake2b256>;
 
 #[derive(Clone, Debug, Eq, Multihash, PartialEq)]
 pub enum Multihash {

@@ -1,8 +1,10 @@
+use crate::codec::TreeCodec;
 use anyhow::Result;
 pub use hash_db::Hasher;
 use parity_scale_codec::{Decode, Encode};
 use sp_trie::{Layout, MemoryDB, TrieConfiguration, TrieDBMut, TrieHash, TrieMut};
 use std::collections::BTreeMap;
+use std::io::{Read, Write};
 use std::marker::PhantomData;
 use thiserror::Error;
 
@@ -14,7 +16,7 @@ pub struct OffchainBlock<H: Hasher> {
     /// Hasher.
     _marker: PhantomData<H>,
     /// Tree data of the block.
-    tree: BTreeMap<Vec<u8>, Vec<u8>>,
+    tree: BTreeMap<String, Vec<u8>>,
     /// Root hash.
     root: H::Out,
 }
@@ -23,31 +25,12 @@ impl<H: Hasher> OffchainBlock<H>
 where
     H::Out: 'static,
 {
-    pub fn encode(&self) -> (&H::Out, Vec<u8>) {
-        (&self.root, self.tree.encode())
-    }
-
-    pub fn decode(expected: &H::Out, mut bytes: &[u8]) -> Result<Self> {
-        let tree = Decode::decode(&mut bytes)?;
-        let root = Layout::<H>::trie_root(&tree);
-        if root != *expected {
-            return Err(TrieError::RootMissmatch.into());
-        }
-        Ok(Self {
-            _marker: PhantomData,
-            tree,
-            root,
-        })
-    }
-
-    pub fn get<K: Encode + ?Sized, V: Decode>(&self, k: &K) -> Result<V> {
-        let bytes = k
-            .using_encoded(|key| self.tree.get(key))
-            .ok_or(TrieError::MissingKey)?;
+    pub fn get<V: Decode>(&self, key: &str) -> Result<V> {
+        let bytes = self.tree.get(key).ok_or(TrieError::MissingKey)?;
         Ok(V::decode(&mut &bytes[..])?)
     }
 
-    pub fn tree(&self) -> &BTreeMap<Vec<u8>, Vec<u8>> {
+    pub fn tree(&self) -> &BTreeMap<String, Vec<u8>> {
         &self.tree
     }
 
@@ -64,6 +47,25 @@ impl<H: Hasher> PartialEq for OffchainBlock<H> {
 
 impl<H: Hasher> Eq for OffchainBlock<H> {}
 
+impl<H: Hasher> libipld::codec::Encode<TreeCodec> for OffchainBlock<H> {
+    fn encode<W: Write>(&self, _: TreeCodec, w: &mut W) -> Result<()> {
+        self.tree.encode_to(w);
+        Ok(())
+    }
+}
+
+impl<H: Hasher> libipld::codec::Decode<TreeCodec> for OffchainBlock<H> {
+    fn decode<R: Read>(_: TreeCodec, r: &mut R) -> Result<Self> {
+        let tree = Decode::decode(&mut crate::codec::IoReader(r))?;
+        let root = Layout::<H>::trie_root(&tree);
+        Ok(Self {
+            _marker: PhantomData,
+            tree,
+            root,
+        })
+    }
+}
+
 /// An immutable sealed block suitable for insertion.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SealedBlock<H: Hasher> {
@@ -73,7 +75,7 @@ pub struct SealedBlock<H: Hasher> {
     /// about are contained in the OffchainBlock.
     pub proof: Vec<Vec<u8>>,
     /// List of key value pairs the chain needs to know about.
-    pub proof_data: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+    pub proof_data: Vec<(String, Option<Vec<u8>>)>,
 }
 
 impl<H: Hasher> SealedBlock<H> {
@@ -89,7 +91,7 @@ impl<H: Hasher> SealedBlock<H> {
 
 pub struct BlockBuilder<H: Hasher> {
     _marker: PhantomData<H>,
-    tree: BTreeMap<Vec<u8>, (Option<Vec<u8>>, bool)>,
+    tree: BTreeMap<String, (Option<Vec<u8>>, bool)>,
 }
 
 impl<H: Hasher> Default for BlockBuilder<H> {
@@ -106,8 +108,8 @@ impl<H: Hasher> BlockBuilder<H> {
         Default::default()
     }
 
-    pub fn insert<K: Encode + ?Sized, V: Encode + ?Sized>(&mut self, k: &K, v: &V, proof: bool) {
-        self.tree.insert(k.encode(), (Some(v.encode()), proof));
+    pub fn insert<V: Encode + ?Sized>(&mut self, k: String, v: &V, proof: bool) {
+        self.tree.insert(k, (Some(v.encode()), proof));
     }
 
     pub fn seal(self) -> Result<SealedBlock<H>> {
@@ -121,7 +123,7 @@ impl<H: Hasher> BlockBuilder<H> {
                 proof_data.push((k.clone(), v.clone()));
             }
             if let Some(v) = v {
-                trie.insert(&k, &v)
+                trie.insert(k.as_ref(), &v)
                     .map_err(|_| TrieError::InsertionFailure)?;
                 tree.insert(k, v);
             }
@@ -160,11 +162,11 @@ pub enum TrieError {
 }
 
 pub trait TreeEncode<H: Hasher> {
-    fn encode_tree(&self, block: &mut BlockBuilder<H>, prefix: &[u8], proof: bool);
+    fn encode_tree(&self, block: &mut BlockBuilder<H>, prefix: &str, proof: bool);
 
     fn seal(&self) -> Result<SealedBlock<H>> {
         let mut block = BlockBuilder::new();
-        self.encode_tree(&mut block, &[], false);
+        self.encode_tree(&mut block, "", false);
         block.seal()
     }
 }
@@ -173,16 +175,16 @@ impl<T: Encode, H: Hasher> TreeEncode<H> for T
 where
     H::Out: 'static,
 {
-    fn encode_tree(&self, block: &mut BlockBuilder<H>, prefix: &[u8], proof: bool) {
-        block.insert(prefix, self, proof);
+    fn encode_tree(&self, block: &mut BlockBuilder<H>, prefix: &str, proof: bool) {
+        block.insert(prefix.to_string(), self, proof);
     }
 }
 
 pub trait TreeDecode<H: Hasher>: Sized {
-    fn decode_tree(block: &OffchainBlock<H>, prefix: &[u8]) -> Result<Self>;
+    fn decode_tree(block: &OffchainBlock<H>, prefix: &str) -> Result<Self>;
 
     fn decode(block: &OffchainBlock<H>) -> Result<Self> {
-        Self::decode_tree(block, &[])
+        Self::decode_tree(block, "")
     }
 }
 
@@ -190,15 +192,49 @@ impl<T: Decode, H: Hasher> TreeDecode<H> for T
 where
     H::Out: 'static,
 {
-    fn decode_tree(block: &OffchainBlock<H>, prefix: &[u8]) -> Result<Self> {
+    fn decode_tree(block: &OffchainBlock<H>, prefix: &str) -> Result<Self> {
         block.get(prefix)
+    }
+}
+
+pub struct PrefixIter<'a> {
+    prefix: &'a str,
+    fields: std::slice::Iter<'a, &'a str>,
+}
+
+impl<'a> PrefixIter<'a> {
+    pub fn new(prefix: &'a str, fields: &'a [&'a str]) -> Self {
+        Self {
+            prefix,
+            fields: fields.into_iter(),
+        }
+    }
+}
+
+impl<'a> Iterator for PrefixIter<'a> {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(field) = self.fields.next() {
+            let mut prefix = String::with_capacity(self.prefix.len() + field.len());
+            prefix.push_str(self.prefix);
+            prefix.push_str(field);
+            Some(prefix)
+        } else {
+            None
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sp_core::{sr25519, Blake2Hasher, H256};
+    use crate::codec::Multicodec;
+    use crate::hasher::{Multihash, TreeHasherBlake2b256 as TreeHasher, BLAKE2B_256_TREE};
+    use libipld::cid::Cid;
+    use libipld::mem::MemStore;
+    use libipld::store::{ReadonlyStore, Store};
+    use sp_core::sr25519;
     use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair, TypedPublic};
     use sunshine_crypto::secret_box::SecretBox;
 
@@ -221,7 +257,7 @@ mod tests {
         //#[offchain(proof)]
         number: u32,
         //#[offchain(proof)]
-        prev: Option<H256>, // TODO Cid
+        prev: Option<Cid>,
         description: String,
         set_user_key: SetUserKey,
     }
@@ -232,68 +268,75 @@ mod tests {
         private_key: SecretBox<UserDevices, TypedPair<User>>,
     }
 
-    impl TreeEncode<Blake2Hasher> for SetUserKey {
-        fn encode_tree(&self, block: &mut BlockBuilder<Blake2Hasher>, prefix: &[u8], proof: bool) {
-            (prefix, b"public_key").using_encoded(|prefix| {
-                self.public_key.encode_tree(block, prefix, proof);
-            });
-            (prefix, b"private_key").using_encoded(|prefix| {
-                self.private_key.encode_tree(block, prefix, proof);
-            });
+    impl TreeEncode<TreeHasher> for SetUserKey {
+        fn encode_tree(&self, block: &mut BlockBuilder<TreeHasher>, prefix: &str, proof: bool) {
+            let mut prefixes = PrefixIter::new(prefix, &[".public_key", ".private_key"]);
+            self.public_key
+                .encode_tree(block, &prefixes.next().unwrap(), proof);
+            self.private_key
+                .encode_tree(block, &prefixes.next().unwrap(), proof);
         }
     }
 
-    impl TreeEncode<Blake2Hasher> for Block {
-        fn encode_tree(&self, block: &mut BlockBuilder<Blake2Hasher>, prefix: &[u8], proof: bool) {
-            (prefix, b"number").using_encoded(|prefix| {
-                self.number.encode_tree(block, prefix, true);
-            });
-            (prefix, b"prev").using_encoded(|prefix| {
-                self.prev.encode_tree(block, prefix, true);
-            });
-            (prefix, b"description").using_encoded(|prefix| {
-                self.description.encode_tree(block, prefix, proof);
-            });
-            (prefix, b"set_user_key").using_encoded(|prefix| {
-                self.set_user_key.encode_tree(block, prefix, proof);
-            });
+    impl TreeEncode<TreeHasher> for Block {
+        fn encode_tree(&self, block: &mut BlockBuilder<TreeHasher>, prefix: &str, proof: bool) {
+            let mut prefixes = PrefixIter::new(
+                prefix,
+                &[".number", ".prev", ".description", ".set_user_key"],
+            );
+            self.number
+                .encode_tree(block, &prefixes.next().unwrap(), proof);
+            self.prev
+                .encode_tree(block, &prefixes.next().unwrap(), proof);
+            self.description
+                .encode_tree(block, &prefixes.next().unwrap(), proof);
+            self.set_user_key
+                .encode_tree(block, &prefixes.next().unwrap(), proof);
         }
     }
 
-    impl TreeDecode<Blake2Hasher> for SetUserKey {
-        fn decode_tree(block: &OffchainBlock<Blake2Hasher>, prefix: &[u8]) -> Result<Self> {
+    impl TreeDecode<TreeHasher> for SetUserKey {
+        fn decode_tree(block: &OffchainBlock<TreeHasher>, prefix: &str) -> Result<Self> {
+            let mut prefixes = PrefixIter::new(prefix, &[".public_key", ".private_key"]);
+            let public_key = TreeDecode::decode_tree(block, &prefixes.next().unwrap())?;
+            let private_key = TreeDecode::decode_tree(block, &prefixes.next().unwrap())?;
             Ok(Self {
-                public_key: (prefix, b"public_key")
-                    .using_encoded(|prefix| TreeDecode::decode_tree(block, prefix))?,
-                private_key: (prefix, b"private_key")
-                    .using_encoded(|prefix| TreeDecode::decode_tree(block, prefix))?,
+                public_key,
+                private_key,
             })
         }
     }
 
-    impl TreeDecode<Blake2Hasher> for Block {
-        fn decode_tree(block: &OffchainBlock<Blake2Hasher>, prefix: &[u8]) -> Result<Self> {
+    impl TreeDecode<TreeHasher> for Block {
+        fn decode_tree(block: &OffchainBlock<TreeHasher>, prefix: &str) -> Result<Self> {
+            let mut prefixes = PrefixIter::new(
+                prefix,
+                &[".number", ".prev", ".description", ".set_user_key"],
+            );
+            let number = TreeDecode::decode_tree(block, &prefixes.next().unwrap())?;
+            let prev = TreeDecode::decode_tree(block, &prefixes.next().unwrap())?;
+            let description = TreeDecode::decode_tree(block, &prefixes.next().unwrap())?;
+            let set_user_key = TreeDecode::decode_tree(block, &prefixes.next().unwrap())?;
             Ok(Self {
-                number: (prefix, b"number")
-                    .using_encoded(|prefix| TreeDecode::decode_tree(block, prefix))?,
-                prev: (prefix, b"prev")
-                    .using_encoded(|prefix| TreeDecode::decode_tree(block, prefix))?,
-                description: (prefix, b"description")
-                    .using_encoded(|prefix| TreeDecode::decode_tree(block, prefix))?,
-                set_user_key: (prefix, b"set_user_key")
-                    .using_encoded(|prefix| TreeDecode::decode_tree(block, prefix))?,
+                number,
+                prev,
+                description,
+                set_user_key,
             })
         }
     }
 
     #[async_std::test]
     async fn test_block() {
+        let store = MemStore::<Multicodec, Multihash>::new();
+
         let device = TypedPair::<UserDevices>::generate().await;
         let user = TypedPair::<User>::generate().await;
 
         let mut key_chain = KeyChain::new();
         key_chain.insert(device);
 
+        // create a sealed block.
         let block = Block {
             number: 0,
             prev: None,
@@ -306,8 +349,30 @@ mod tests {
         let sealed_block = block.seal().unwrap();
         sealed_block.verify_proof().unwrap();
 
-        let (root, bytes) = sealed_block.offchain.encode();
-        let offchain_block = OffchainBlock::decode(root, &bytes).unwrap();
+        // store a sealead block in ipfs.
+        let ipld_block = libipld::block::Block::<TreeCodec, _>::encode(
+            TreeCodec,
+            BLAKE2B_256_TREE,
+            &sealed_block.offchain,
+        )
+        .unwrap()
+        .try_into_block()
+        .unwrap();
+        store.insert(&ipld_block).await.unwrap();
+        if let Some(ancestor) = block.prev.as_ref() {
+            store.unpin(ancestor).await.unwrap();
+        }
+
+        // retrive a block from ipfs.
+        let ipld_block2: libipld::block::Block<TreeCodec, _> = store
+            .get(ipld_block.cid.clone())
+            .await
+            .unwrap()
+            .try_into_block()
+            .unwrap();
+        assert_eq!(ipld_block.data, ipld_block2.data);
+
+        let offchain_block: OffchainBlock<TreeHasher> = ipld_block2.decode().unwrap();
         assert_eq!(sealed_block.offchain, offchain_block);
 
         let block2 = Block::decode(&offchain_block).unwrap();
@@ -320,13 +385,13 @@ mod tests {
     #[test]
     fn test_trie() {
         let mut db = MemoryDB::default();
-        let mut root = H256::default();
-        let mut trie = TrieDBMut::<Layout<Blake2Hasher>>::new(&mut db, &mut root);
+        let mut root = Default::default();
+        let mut trie = TrieDBMut::<Layout<TreeHasher>>::new(&mut db, &mut root);
         trie.insert(b"prev", b"cid").unwrap();
         trie.insert(b"remove_device_key", b"0").unwrap();
         drop(trie);
 
-        let proof = sp_trie::generate_trie_proof::<Layout<Blake2Hasher>, _, _, _>(
+        let proof = sp_trie::generate_trie_proof::<Layout<TreeHasher>, _, _, _>(
             &db,
             root,
             &[
@@ -337,7 +402,7 @@ mod tests {
         )
         .unwrap();
 
-        sp_trie::verify_trie_proof::<Layout<Blake2Hasher>, _, _, _>(
+        sp_trie::verify_trie_proof::<Layout<TreeHasher>, _, _, _>(
             &root,
             &proof,
             &[
@@ -348,7 +413,7 @@ mod tests {
         )
         .unwrap();
 
-        let res = sp_trie::verify_trie_proof::<Layout<Blake2Hasher>, _, _, _>(
+        let res = sp_trie::verify_trie_proof::<Layout<TreeHasher>, _, _, _>(
             &root,
             &proof,
             &[

@@ -206,7 +206,7 @@ impl<'a> PrefixIter<'a> {
     pub fn new(prefix: &'a str, fields: &'a [&'a str]) -> Self {
         Self {
             prefix,
-            fields: fields.into_iter(),
+            fields: fields.iter(),
         }
     }
 }

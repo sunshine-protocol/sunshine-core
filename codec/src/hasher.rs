@@ -58,24 +58,11 @@ where
     type Size = H::Size;
     type Digest = TreeHash<H::Digest>;
 
-    fn update(&mut self, _input: &[u8]) {
-        unimplemented!();
-    }
-
-    fn finalize(&self) -> Self::Digest {
-        unimplemented!();
-    }
-
-    fn reset(&mut self) {
-        unimplemented!();
-    }
-
     fn digest(mut input: &[u8]) -> Self::Digest
     where
         Self: Sized,
     {
-        // TODO fix unwrap
-        let tree: BTreeMap<Vec<u8>, Vec<u8>> = Decode::decode(&mut input).unwrap();
+        let tree: BTreeMap<Vec<u8>, Vec<u8>> = Decode::decode(&mut input).unwrap_or_default();
         TreeHash(Layout::<Self>::trie_root(&tree))
     }
 }
@@ -83,7 +70,6 @@ where
 pub const BLAKE2B_256: u64 = 0x00;
 pub const BLAKE2B_256_TREE: u64 = 0x01;
 
-// TODO fix in multihash
 pub type TreeHasherBlake2b256 = TreeHasher<multihash::Blake2b256>;
 
 #[derive(Clone, Debug, Eq, Multihash, PartialEq)]

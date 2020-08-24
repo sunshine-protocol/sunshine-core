@@ -350,26 +350,16 @@ mod tests {
         sealed_block.verify_proof().unwrap();
 
         // store a sealead block in ipfs.
-        let ipld_block = libipld::block::Block::<TreeCodec, _>::encode(
-            TreeCodec,
-            BLAKE2B_256_TREE,
-            &sealed_block.offchain,
-        )
-        .unwrap()
-        .try_into_block()
-        .unwrap();
+        let ipld_block =
+            libipld::block::Block::encode(TreeCodec, BLAKE2B_256_TREE, &sealed_block.offchain)
+                .unwrap();
         store.insert(&ipld_block).await.unwrap();
         if let Some(ancestor) = block.prev.as_ref() {
             store.unpin(ancestor).await.unwrap();
         }
 
         // retrive a block from ipfs.
-        let ipld_block2: libipld::block::Block<TreeCodec, _> = store
-            .get(ipld_block.cid.clone())
-            .await
-            .unwrap()
-            .try_into_block()
-            .unwrap();
+        let ipld_block2 = store.get(ipld_block.cid.clone()).await.unwrap();
         assert_eq!(ipld_block.data, ipld_block2.data);
 
         let offchain_block: OffchainBlock<TreeHasher> = ipld_block2.decode().unwrap();

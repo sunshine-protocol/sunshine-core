@@ -11,10 +11,6 @@ use std::io::{Read, Write};
 pub struct TreeCodec;
 
 impl Codec for TreeCodec {
-    fn encode_ipld(&self, ipld: &Ipld) -> Result<Box<[u8]>> {
-        self.encode(ipld)
-    }
-
     fn decode_ipld(&self, mut bytes: &[u8]) -> Result<Ipld> {
         Ipld::decode(*self, &mut bytes)
     }
@@ -125,10 +121,6 @@ impl From<Multicodec> for TreeCodec {
 }
 
 impl Codec for Multicodec {
-    fn encode_ipld(&self, ipld: &Ipld) -> Result<Box<[u8]>> {
-        self.encode(ipld)
-    }
-
     fn decode_ipld(&self, mut bytes: &[u8]) -> Result<Ipld> {
         Ipld::decode(*self, &mut bytes)
     }

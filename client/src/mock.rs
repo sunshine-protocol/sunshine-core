@@ -1,6 +1,6 @@
 use crate::client::GenericClient;
 use crate::node::NodeConfig;
-use crate::Client;
+use crate::{Client, OffchainClient};
 use sp_core::Pair;
 pub use sp_keyring::AccountKeyring;
 use sp_runtime::traits::{IdentifyAccount, Verify};
@@ -41,7 +41,7 @@ pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
     (client, tmp)
 }
 
-impl<N, K, O: From<OffchainStoreImpl>> GenericClient<N, K, KeystoreImpl<K>, O>
+impl<N, K, O> GenericClient<N, K, KeystoreImpl<K>, O>
 where
     N: NodeConfig,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
@@ -54,7 +54,7 @@ where
         + Sync,
     K: KeyType,
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
-    O: Send + Sync,
+    O: OffchainClient<Store = OffchainStoreImpl> + From<OffchainStoreImpl>,
 {
     pub async fn mock(test_node: &TestNode, account: AccountKeyring) -> Self {
         let mut me = Self {
@@ -75,7 +75,7 @@ where
     }
 }
 
-impl<N, K, O: From<OffchainStoreImpl>> GenericClient<N, K, crate::client::KeystoreImpl<K>, O>
+impl<N, K, O> GenericClient<N, K, crate::client::KeystoreImpl<K>, O>
 where
     N: NodeConfig,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
@@ -88,7 +88,7 @@ where
         + Sync,
     K: KeyType,
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
-    O: Send + Sync,
+    O: OffchainClient<Store = OffchainStoreImpl> + From<OffchainStoreImpl>,
 {
     pub async fn mock_with_keystore(
         test_node: &TestNode,

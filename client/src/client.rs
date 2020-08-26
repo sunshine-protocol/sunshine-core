@@ -1,6 +1,6 @@
 pub use crate::light::ServiceError;
 use crate::node::NodeConfig;
-use crate::Client;
+use crate::{Client, OffchainClient};
 use anyhow::Result;
 use async_trait::async_trait;
 use ipfs_embed::{Config as OffchainConfig, PeerId, Store as OffchainStore};
@@ -45,7 +45,7 @@ where
     K: KeyType,
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
     KS: Keystore<K>,
-    O: Send + Sync,
+    O: OffchainClient,
 {
     type Keystore = KS;
     type KeyType = K;

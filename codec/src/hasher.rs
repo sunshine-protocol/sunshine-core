@@ -1,9 +1,10 @@
 use generic_array::typenum::marker_traits::Unsigned;
 use generic_array::GenericArray;
 use hash256_std_hasher::Hash256StdHasher;
+use parity_scale_codec::{Decode, Encode};
 use tiny_multihash::{self as multihash, Digest, Size};
 
-#[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Decode, Encode)]
 pub struct TreeHash<D>(D);
 
 impl<D: AsRef<[u8]>> AsRef<[u8]> for TreeHash<D> {
@@ -60,7 +61,6 @@ where
     where
         Self: Sized,
     {
-        use parity_scale_codec::Decode;
         use sp_trie::{Layout, TrieConfiguration};
         use std::collections::BTreeMap;
 

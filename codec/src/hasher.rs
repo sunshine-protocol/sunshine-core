@@ -1,10 +1,7 @@
 use generic_array::typenum::marker_traits::Unsigned;
 use generic_array::GenericArray;
 use hash256_std_hasher::Hash256StdHasher;
-use libipld::multihash::{self, derive::Multihash, Digest, Hasher, MultihashDigest, Size};
-use parity_scale_codec::Decode;
-use sp_trie::{Layout, TrieConfiguration};
-use std::collections::BTreeMap;
+use tiny_multihash::{self as multihash, Digest, Size};
 
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct TreeHash<D>(D);
@@ -51,6 +48,7 @@ where
     }
 }
 
+#[cfg(feature = "std")]
 impl<H: multihash::Hasher> multihash::Hasher for TreeHasher<H>
 where
     H::Digest: Copy,
@@ -62,6 +60,10 @@ where
     where
         Self: Sized,
     {
+        use parity_scale_codec::Decode;
+        use sp_trie::{Layout, TrieConfiguration};
+        use std::collections::BTreeMap;
+
         let tree: BTreeMap<Vec<u8>, Vec<u8>> = Decode::decode(&mut input).unwrap_or_default();
         TreeHash(Layout::<Self>::trie_root(&tree))
     }
@@ -72,7 +74,11 @@ pub const BLAKE2B_256_TREE: u64 = 0x01;
 
 pub type TreeHasherBlake2b256 = TreeHasher<multihash::Blake2b256>;
 
+#[cfg(feature = "std")]
+use multihash::{derive::Multihash, Hasher, MultihashDigest};
+
 #[derive(Clone, Debug, Eq, Multihash, PartialEq)]
+#[cfg(feature = "std")]
 pub enum Multihash {
     #[mh(code = BLAKE2B_256, hasher = multihash::Blake2b256)]
     Blake2b256(multihash::Blake2bDigest<multihash::U32>),

@@ -7,7 +7,6 @@ members = [
     "ffi",
     "keystore",
     "node",
-    "pallet",
 ]
 
 [patch.crates-io]

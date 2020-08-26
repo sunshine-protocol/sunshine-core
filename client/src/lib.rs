@@ -6,7 +6,6 @@ pub use sunshine_crypto::keystore::{Keystore, KeystoreLocked};
 pub use sunshine_crypto::secrecy::SecretString;
 pub use sunshine_crypto::signer::Signer;
 pub use sunshine_keystore as keystore;
-pub use sunshine_pallet_utils::*;
 
 pub mod block;
 pub mod client;

@@ -5,15 +5,15 @@ authors = ["David Craven <david@craven.ch>"]
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.32"
+anyhow = { version = "1.0.32", optional = true }
 generic-array = "0.14.4"
-libipld = { version = "0.4.0", default-features = false, features = ["dag-cbor"] }
-parity-scale-codec = "1.3.4"
-hash-db = "0.15.2"
-hash256-std-hasher = "0.15.2"
-sp-trie = "2.0.0-rc6"
-thiserror = "1.0.20"
-tiny-multihash = "0.4.1"
+libipld = { version = "0.4.0", default-features = false, features = ["dag-cbor"], optional = true }
+parity-scale-codec = { version = "1.3.4", default-features = false }
+hash-db = { version = "0.15.2", default-features = false }
+hash256-std-hasher = { version = "0.15.2", default-features = false }
+sp-trie = { version = "2.0.0-rc6", default-features = false }
+thiserror = { version = "1.0.20", optional = true }
+tiny-multihash = { version = "0.4.1", default-features = false, features = ["blake2b"] }
 tiny-cid = { version = "0.2.0", features = ["scale-codec"] }
 
 [dev-dependencies]
@@ -23,4 +23,14 @@ sunshine-crypto = { path = "../crypto" }
 
 [features]
 default = ["std"]
-std = ["tiny-multihash/std"]
+std = [
+    "anyhow",
+    "hash256-std-hasher/std",
+    "hash-db/std",
+    "libipld",
+    "parity-scale-codec/std",
+    "sp-trie/std",
+    "thiserror",
+    "tiny-cid/std",
+    "tiny-multihash/std",
+]

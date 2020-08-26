@@ -35,7 +35,7 @@ pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
         role: Role::Authority(AccountKeyring::Alice),
         telemetry: None,
     }
-    .to_service_config();
+    .into_service_config();
     let (task_manager, rpc) = N::new_full(config).unwrap();
     let client = SubxtClient::new(task_manager, rpc).into();
     (client, tmp)

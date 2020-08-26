@@ -72,6 +72,7 @@ where
 pub const BLAKE2B_256: u64 = 0x00;
 pub const BLAKE2B_256_TREE: u64 = 0x01;
 
+pub type TreeHashBlake2b256 = TreeHash<multihash::Blake2bDigest<multihash::U32>>;
 pub type TreeHasherBlake2b256 = TreeHasher<multihash::Blake2b256>;
 
 #[cfg(feature = "std")]
@@ -83,5 +84,5 @@ pub enum Multihash {
     #[mh(code = BLAKE2B_256, hasher = multihash::Blake2b256)]
     Blake2b256(multihash::Blake2bDigest<multihash::U32>),
     #[mh(code = BLAKE2B_256_TREE, hasher = TreeHasherBlake2b256)]
-    Blake2b256Tree(TreeHash<multihash::Blake2bDigest<multihash::U32>>),
+    Blake2b256Tree(TreeHashBlake2b256),
 }

@@ -40,12 +40,12 @@ impl<H: multihash::Hasher> hash_db::Hasher for TreeHasher<H>
 where
     H::Digest: Copy,
 {
-    type Out = H::Digest;
+    type Out = TreeHash<H::Digest>;
     type StdHasher = Hash256StdHasher;
     const LENGTH: usize = <H::Size as Unsigned>::USIZE;
 
     fn hash(data: &[u8]) -> Self::Out {
-        H::digest(data)
+        TreeHash(H::digest(data))
     }
 }
 
@@ -65,7 +65,7 @@ where
         use std::collections::BTreeMap;
 
         let tree: BTreeMap<Vec<u8>, Vec<u8>> = Decode::decode(&mut input).unwrap_or_default();
-        TreeHash(Layout::<Self>::trie_root(&tree))
+        Layout::<Self>::trie_root(&tree)
     }
 }
 
@@ -78,7 +78,7 @@ pub type TreeHasherBlake2b256 = TreeHasher<multihash::Blake2b256>;
 #[cfg(feature = "std")]
 use multihash::{derive::Multihash, Hasher, MultihashDigest};
 
-#[derive(Clone, Debug, Eq, Multihash, PartialEq)]
+#[derive(Clone, Debug, Eq, Multihash, PartialEq, Decode, Encode)]
 #[cfg(feature = "std")]
 pub enum Multihash {
     #[mh(code = BLAKE2B_256, hasher = multihash::Blake2b256)]

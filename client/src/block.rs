@@ -3,13 +3,13 @@ use parity_scale_codec::{Decode, Encode};
 use sunshine_codec::trie::{BlockBuilder, Hasher, OffchainBlock, TreeDecode, TreeEncode};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GenericBlock<T, H: Hasher> {
-    pub number: u64,
+pub struct GenericBlock<T, N, H: Hasher> {
+    pub number: N,
     pub ancestor: Option<H::Out>,
     pub payload: T,
 }
 
-impl<T: Encode, H: Hasher> TreeEncode<H> for GenericBlock<T, H>
+impl<T: Encode, N: Encode, H: Hasher> TreeEncode<H> for GenericBlock<T, N, H>
 where
     H::Out: Encode + 'static,
 {
@@ -20,7 +20,7 @@ where
     }
 }
 
-impl<T: Decode, H: Hasher> TreeDecode<H> for GenericBlock<T, H>
+impl<T: Decode, N: Decode, H: Hasher> TreeDecode<H> for GenericBlock<T, N, H>
 where
     H::Out: Decode + 'static,
 {

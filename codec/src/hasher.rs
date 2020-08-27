@@ -2,7 +2,8 @@ use generic_array::typenum::marker_traits::Unsigned;
 use generic_array::GenericArray;
 use hash256_std_hasher::Hash256StdHasher;
 use parity_scale_codec::{Decode, Encode};
-use tiny_multihash::{self as multihash, Digest, Size};
+use tiny_cid::Cid;
+use tiny_multihash::{self as multihash, Digest, RawMultihash, Size};
 
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Decode, Encode)]
 pub struct TreeHash<D>(D);
@@ -85,4 +86,13 @@ pub enum Multihash {
     Blake2b256(multihash::Blake2bDigest<multihash::U32>),
     #[mh(code = BLAKE2B_256_TREE, hasher = TreeHasherBlake2b256)]
     Blake2b256Tree(TreeHashBlake2b256),
+}
+
+pub(crate) const SCALE_TREE: u64 = 0x01;
+
+impl From<TreeHashBlake2b256> for Cid {
+    fn from(hash: TreeHashBlake2b256) -> Self {
+        let digest = RawMultihash::wrap(BLAKE2B_256_TREE, hash.as_ref()).unwrap();
+        Cid::new_v1(SCALE_TREE, digest)
+    }
 }

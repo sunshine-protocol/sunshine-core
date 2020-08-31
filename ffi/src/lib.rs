@@ -79,7 +79,7 @@ macro_rules! gen_ffi {
             )*
             let client = $crate::static_client!();
             let ffi_struct = $struct::new(client);
-            let t = isolate.task(async move {
+            let t = async move {
                 match $struct::$method(&ffi_struct, $($param),*).await {
                     Ok(v) => Some(v),
                     Err(e) => {
@@ -87,8 +87,19 @@ macro_rules! gen_ffi {
                         None
                     }
                 }
+            };
+            $crate::async_std::task::spawn(async move {
+                if let Err(e) = isolate.catch_unwind(t).await {
+                    $crate::log::error!("🔥 !! PANIC !! 🔥");
+                    if let Some(msg) = e.downcast_ref::<&str>() {
+                        $crate::log::error!("{:?}", msg);
+                    } else {
+                        $crate::log::error!("no info provided for that panic 😡");
+                        println!("panic occurred but no info ...errr");
+                    }
+                }
+                $crate::log::error!("🔄 Recovered from the panic.");
             });
-            $crate::async_std::task::spawn(t);
             1
         }
     };
@@ -151,7 +162,7 @@ macro_rules! gen_ffi {
                 return 0xdead >> 0x01;
             }
             /// Setup a panic hook with the logger.
-            $crate::panic_hook!();
+            ::std::env::set_var("RUST_BACKTRACE", "full");
             let root = ::std::path::PathBuf::from(cstr!(path));
             let chain_spec = cstr!(chain_spec, allow_null);
             let url = cstr!(url, allow_null);

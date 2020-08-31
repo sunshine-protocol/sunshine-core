@@ -32,7 +32,7 @@ pub async fn build_light_client<N: NodeConfig>(
         chain_spec: chain_spec.clone(),
         telemetry: Some(8000),
     }
-    .to_service_config();
+    .into_service_config();
     let (task_manager, rpc) = N::new_light(config).map_err(|e| ServiceError(format!("{}", e)))?;
     Ok((SubxtClient::new(task_manager, rpc), chain_spec))
 }

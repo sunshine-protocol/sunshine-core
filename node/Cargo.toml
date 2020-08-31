@@ -1,0 +1,40 @@
+[package]
+name = "sunshine-node-utils"
+version = "0.1.0"
+authors = ["David Craven <david@craven.ch>"]
+edition = "2018"
+
+[features]
+default = ["std"]
+std = []
+
+[dependencies]
+sc-basic-authorship = "0.8.0-rc6"
+sc-client-api = "2.0.0-rc6"
+sc-client-db = { version = "0.8.0-rc6", default-features = false, features = ["with-parity-db"] }
+sc-consensus = "0.8.0-rc6"
+sc-consensus-aura = "0.8.0-rc6"
+sc-finality-grandpa = "0.8.0-rc6"
+sc-service = { version = "0.8.0-rc6", default-features = false }
+sc-transaction-pool = "2.0.0-rc6"
+sp-consensus = "0.8.0-rc6"
+sp-consensus-aura = "0.8.0-rc6"
+sp-core = "2.0.0-rc6"
+sp-finality-grandpa = "2.0.0-rc6"
+sp-inherents = "2.0.0-rc6"
+
+[dev-dependencies]
+frame-executive = "2.0.0-rc6"
+frame-support = "2.0.0-rc6"
+frame-system = "2.0.0-rc6"
+parity-scale-codec = "1.3.4"
+serde = "1.0.115"
+sc-executor = "0.8.0-rc6"
+sp-api = "2.0.0-rc6"
+sp-block-builder = "2.0.0-rc6"
+sp-finality-grandpa = "2.0.0-rc6"
+sp-offchain = "2.0.0-rc6"
+sp-runtime = "2.0.0-rc6"
+sp-session = "2.0.0-rc6"
+sp-transaction-pool = "2.0.0-rc6"
+sp-version = "2.0.0-rc6"

@@ -1,7 +1,6 @@
 use crate::client::GenericClient;
 use crate::node::NodeConfig;
-use crate::Client;
-use libipld::mem::MemStore;
+use crate::{Client, OffchainClient};
 use sp_core::Pair;
 pub use sp_keyring::AccountKeyring;
 use sp_runtime::traits::{IdentifyAccount, Verify};
@@ -12,11 +11,12 @@ use substrate_subxt::client::{
 use substrate_subxt::{
     sp_core, sp_runtime, system::System, ClientBuilder, Runtime, SignedExtension, SignedExtra,
 };
+use sunshine_codec::{Multicodec, Multihash};
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
 use sunshine_crypto::secrecy::SecretString;
 pub use tempdir::TempDir;
 
-pub type OffchainStoreImpl = libipld::mem::MemStore;
+pub type OffchainStoreImpl = libipld::mem::MemStore<Multicodec, Multihash>;
 pub type KeystoreImpl<K> = sunshine_crypto::keystore::mock::MemKeystore<K>;
 pub type TestNode = jsonrpsee::Client;
 
@@ -27,22 +27,21 @@ pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
         impl_version: N::impl_version(),
         author: N::author(),
         copyright_start_year: N::copyright_start_year(),
-        db: DatabaseConfig::RocksDb {
+        db: DatabaseConfig::ParityDb {
             path: tmp.path().into(),
-            cache_size: 128,
         },
         keystore: KeystoreConfig::InMemory,
         chain_spec: N::chain_spec_dev(),
         role: Role::Authority(AccountKeyring::Alice),
         telemetry: None,
     }
-    .to_service_config();
+    .into_service_config();
     let (task_manager, rpc) = N::new_full(config).unwrap();
     let client = SubxtClient::new(task_manager, rpc).into();
     (client, tmp)
 }
 
-impl<N, K, O: From<MemStore>> GenericClient<N, K, KeystoreImpl<K>, O>
+impl<N, K, O> GenericClient<N, K, KeystoreImpl<K>, O>
 where
     N: NodeConfig,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
@@ -55,7 +54,7 @@ where
         + Sync,
     K: KeyType,
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
-    O: Send + Sync,
+    O: OffchainClient<Store = OffchainStoreImpl> + From<OffchainStoreImpl>,
 {
     pub async fn mock(test_node: &TestNode, account: AccountKeyring) -> Self {
         let mut me = Self {
@@ -67,7 +66,7 @@ where
                 .build()
                 .await
                 .unwrap(),
-            offchain_client: O::from(OffchainStoreImpl::default()),
+            offchain_client: O::from(OffchainStoreImpl::new()),
         };
         let key = TypedPair::from_suri(&account.to_seed()).unwrap();
         let password = SecretString::new("password".to_string());
@@ -76,7 +75,7 @@ where
     }
 }
 
-impl<N, K, O: From<MemStore>> GenericClient<N, K, crate::client::KeystoreImpl<K>, O>
+impl<N, K, O> GenericClient<N, K, crate::client::KeystoreImpl<K>, O>
 where
     N: NodeConfig,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
@@ -89,7 +88,7 @@ where
         + Sync,
     K: KeyType,
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
-    O: Send + Sync,
+    O: OffchainClient<Store = OffchainStoreImpl> + From<OffchainStoreImpl>,
 {
     pub async fn mock_with_keystore(
         test_node: &TestNode,
@@ -105,7 +104,7 @@ where
                 .build()
                 .await
                 .unwrap(),
-            offchain_client: O::from(OffchainStoreImpl::default()),
+            offchain_client: O::from(OffchainStoreImpl::new()),
         };
         let key = TypedPair::from_suri(&account.to_seed()).unwrap();
         let password = SecretString::new("password".to_string());

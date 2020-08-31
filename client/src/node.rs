@@ -1,7 +1,6 @@
 pub use sc_service::{
     error::Error as ScServiceError, ChainSpec, Configuration, RpcHandlers, TaskManager,
 };
-use std::sync::Arc;
 use substrate_subxt::Runtime;
 use thiserror::Error;
 
@@ -18,10 +17,10 @@ pub trait NodeConfig {
     ) -> std::result::Result<Self::ChainSpec, ChainSpecError>;
     fn new_light(
         config: Configuration,
-    ) -> core::result::Result<(TaskManager, Arc<RpcHandlers>), ScServiceError>;
+    ) -> core::result::Result<(TaskManager, RpcHandlers), ScServiceError>;
     fn new_full(
         config: Configuration,
-    ) -> core::result::Result<(TaskManager, Arc<RpcHandlers>), ScServiceError>;
+    ) -> core::result::Result<(TaskManager, RpcHandlers), ScServiceError>;
 }
 
 #[derive(Debug, Error)]

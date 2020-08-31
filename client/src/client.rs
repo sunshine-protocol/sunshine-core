@@ -1,9 +1,9 @@
 pub use crate::light::ServiceError;
 use crate::node::NodeConfig;
-use crate::Client;
+use crate::{Client, OffchainClient};
 use anyhow::Result;
 use async_trait::async_trait;
-use ipfs_embed::{Config as OffchainConfig, Store as OffchainStore};
+use ipfs_embed::{Config as OffchainConfig, PeerId, Store as OffchainStore};
 use sc_service::ChainSpec;
 use sp_core::Pair;
 use sp_runtime::traits::{IdentifyAccount, Verify};
@@ -12,13 +12,14 @@ use std::path::Path;
 use substrate_subxt::{
     sp_core, sp_runtime, system::System, ClientBuilder, Runtime, SignedExtension, SignedExtra,
 };
+use sunshine_codec::{Multicodec, Multihash};
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
 use sunshine_crypto::keystore::{Keystore, KeystoreLocked, KeystoreUninitialized};
 use sunshine_crypto::secrecy::SecretString;
 use sunshine_crypto::signer::{GenericSigner, GenericSubxtSigner, Signer};
 use sunshine_keystore::Keystore as KeybaseKeystore;
 
-pub type OffchainStoreImpl = OffchainStore;
+pub type OffchainStoreImpl = OffchainStore<Multicodec, Multihash>;
 pub type KeystoreImpl<K> = sunshine_keystore::Keystore<K>;
 
 pub struct GenericClient<N: NodeConfig, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
@@ -44,7 +45,7 @@ where
     K: KeyType,
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
     KS: Keystore<K>,
-    O: Send + Sync,
+    O: OffchainClient,
 {
     type Keystore = KS;
     type KeyType = K;
@@ -118,7 +119,7 @@ where
 
 pub enum Config<'a> {
     Rpc { url: &'a str },
-    Light { chain_spec: &'a Path }
+    Light { chain_spec: &'a Path },
 }
 
 impl<'a> From<&'a str> for Config<'a> {
@@ -177,7 +178,8 @@ where
             config.network.boot_nodes = chain_spec
                 .boot_nodes()
                 .iter()
-                .map(|x| (x.multiaddr.clone(), x.peer_id.clone()))
+                // substrate rc6 uses libp2p 0.23, ipfs embed uses libp2p 0.24
+                .map(|x| (x.multiaddr.clone(), PeerId::from_bytes(x.peer_id.as_bytes().to_vec()).unwrap()))
                 .collect();
         }
         let store = OffchainStore::new(config)?;

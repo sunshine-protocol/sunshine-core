@@ -6,7 +6,6 @@ pub use sunshine_crypto::keystore::{Keystore, KeystoreLocked};
 pub use sunshine_crypto::secrecy::SecretString;
 pub use sunshine_crypto::signer::Signer;
 pub use sunshine_keystore as keystore;
-pub use sunshine_pallet_utils::*;
 
 pub mod block;
 pub mod client;
@@ -15,6 +14,7 @@ mod light;
 pub mod mock;
 pub mod node;
 
+use libipld::store::Store;
 use substrate_subxt::Runtime;
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
 use sunshine_crypto::signer::GenericSubxtSigner;
@@ -30,7 +30,7 @@ pub trait Client<R: Runtime>: Send + Sync {
     type Keystore: Keystore<Self::KeyType>;
 
     /// The offchain client type.
-    type OffchainClient: Send + Sync;
+    type OffchainClient: OffchainClient;
 
     /// Returns a reference to the keystore.
     fn keystore(&self) -> &Self::Keystore;
@@ -83,6 +83,15 @@ pub trait Client<R: Runtime>: Send + Sync {
 
     /// Returns a reference to the offchain client.
     fn offchain_client(&self) -> &Self::OffchainClient;
+}
+
+/// The offchain client trait.
+pub trait OffchainClient: Send + Sync {
+    /// The block store type.
+    type Store: Store;
+
+    /// Returns the underlying store.
+    fn store(&self) -> &Self::Store;
 }
 
 #[derive(Debug, Error)]

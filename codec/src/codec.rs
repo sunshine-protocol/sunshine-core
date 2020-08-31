@@ -54,7 +54,7 @@ impl Decode<TreeCodec> for Ipld {
         let tree: BTreeMap<String, Ipld> = tree
             .into_iter()
             .map(|(k, v)| {
-                let value = if let Ok(cid) = Cid::try_from(v.as_slice()) {
+                let value = if let Ok(cid) = <Cid as parity_scale_codec::Decode>::decode(&mut v.as_slice()) {
                     Ipld::Link(cid)
                 } else {
                     Ipld::Bytes(v)

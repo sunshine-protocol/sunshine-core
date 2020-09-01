@@ -13,7 +13,7 @@ hash-db = { version = "0.15.2", default-features = false }
 hash256-std-hasher = { version = "0.15.2", default-features = false }
 sp-trie = { version = "2.0.0-rc6", default-features = false }
 thiserror = { version = "1.0.20", optional = true }
-tiny-multihash = { version = "0.4.1", default-features = false, features = ["blake2b", "scale-codec"] }
+tiny-multihash = { version = "0.4.1", default-features = false, features = ["blake2b", "scale-codec", "serde-codec"] }
 tiny-cid = { version = "0.2.0", default-features = false, features = ["scale-codec", "serde-codec"] }
 
 [dev-dependencies]

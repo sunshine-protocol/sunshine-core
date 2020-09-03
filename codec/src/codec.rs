@@ -124,7 +124,7 @@ impl Encode<Multicodec> for Ipld {
     fn encode<W: Write>(&self, c: Multicodec, w: &mut W) -> Result<()> {
         match c {
             Multicodec::DagCbor => self.encode(DagCborCodec, w)?,
-            Multicodec::Tree => self.encode(TreeCodec, w)?,
+            Multicodec::Tree => return Err(UnsupportedCodec(Multicodec::Tree.into()).into()),
         };
         Ok(())
     }
@@ -136,5 +136,59 @@ impl Decode<Multicodec> for Ipld {
             Multicodec::DagCbor => Self::decode(DagCborCodec, r)?,
             Multicodec::Tree => Self::decode(TreeCodec, r)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hasher::{BLAKE2B_256_TREE, Multihash, TreeHasherBlake2b256};
+    use crate::trie::*;
+
+    type IpldBlock = libipld::block::Block<Multicodec, Multihash>;
+
+    struct Block {
+        ancestor: Option<Cid>,
+        payload: u64,
+    }
+
+    impl TreeEncode<TreeHasherBlake2b256> for Block {
+        fn encode_tree(&self, block: &mut BlockBuilder<TreeHasherBlake2b256>, _prefix: &str, _proof: bool) {
+            block.insert("ancestor".into(), &self.ancestor, true);
+            block.insert("payload".into(), &self.payload, false);
+        }
+    }
+
+    impl TreeDecode<TreeHasherBlake2b256> for Block {
+        fn decode_tree(block: &OffchainBlock<TreeHasherBlake2b256>, _prefix: &str) -> Result<Self> {
+            Ok(Self {
+                ancestor: block.get("ancestor")?,
+                payload: block.get("payload")?,
+            })
+        }
+    }
+
+    #[test]
+    fn test_refs() {
+        let b0 = Block { ancestor: None, payload: 0 };
+        let b0o = b0.seal().unwrap().offchain;
+        let b0i = IpldBlock::encode(TreeCodec, BLAKE2B_256_TREE, &b0o).unwrap();
+        let b0d = Ipld::decode(Multicodec::Tree, &mut &b0i.data[..]).unwrap();
+        //println!("{:?}", b0d);
+        assert_eq!(b0d.references().len(), 0);
+
+        let b1 = Block { ancestor: Some(b0i.cid.clone()), payload: 1 };
+        let b1o = b1.seal().unwrap().offchain;
+        let b1i = IpldBlock::encode(TreeCodec, BLAKE2B_256_TREE, &b1o).unwrap();
+        let b1d = Ipld::decode(Multicodec::Tree, &mut &b1i.data[..]).unwrap();
+        //println!("{:?}", b1d);
+        assert_eq!(b1d.references().len(), 1);
+
+        let b2 = Block { ancestor: Some(b1i.cid.clone()), payload: 2 };
+        let b2o = b2.seal().unwrap().offchain;
+        let b2i = IpldBlock::encode(TreeCodec, BLAKE2B_256_TREE, &b2o).unwrap();
+        let b2d = Ipld::decode(Multicodec::Tree, &mut &b2i.data[..]).unwrap();
+        //println!("{:?}", b2d);
+        assert_eq!(b2d.references().len(), 1);
     }
 }

@@ -42,12 +42,6 @@ impl<R: Read> parity_scale_codec::Input for IoReader<R> {
     }
 }
 
-impl Encode<TreeCodec> for Ipld {
-    fn encode<W: Write>(&self, _: TreeCodec, _w: &mut W) -> Result<()> {
-        todo!()
-    }
-}
-
 impl Decode<TreeCodec> for Ipld {
     fn decode<R: Read>(_: TreeCodec, r: &mut R) -> Result<Self> {
         let tree: BTreeMap<String, Vec<u8>> = parity_scale_codec::Decode::decode(&mut IoReader(r))?;

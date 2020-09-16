@@ -5,6 +5,7 @@ pub use sc_client_api;
 pub use sc_consensus;
 pub use sc_consensus_aura;
 pub use sc_finality_grandpa;
+pub use sc_network;
 pub use sc_service;
 pub use sc_transaction_pool;
 pub use sp_consensus;
@@ -17,14 +18,17 @@ pub use sp_inherents;
 macro_rules! node_service {
     ($block:ty, $api:ty, $executor:ty) => {
         use sc_client_api::{ExecutorProvider, RemoteBackend};
+        use sc_network::NetworkService;
         use sc_service::{Configuration, PartialComponents, RpcHandlers, TaskManager};
         use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
+        use sp_runtime::traits::Block;
         use std::sync::Arc;
         use std::time::Duration;
+        use tiny_multihash::MultihashDigest;
         use $crate::{
             sc_basic_authorship, sc_client_api, sc_consensus, sc_consensus_aura,
-            sc_finality_grandpa, sc_service, sc_transaction_pool, sp_consensus, sp_consensus_aura,
-            sp_core, sp_finality_grandpa, sp_inherents,
+            sc_finality_grandpa, sc_network, sc_service, sc_transaction_pool,
+            sp_consensus, sp_consensus_aura, sp_core, sp_finality_grandpa, sp_inherents,
         };
 
         type FullClient = sc_service::TFullClient<$block, $api, $executor>;
@@ -107,9 +111,13 @@ macro_rules! node_service {
         }
 
         /// Builds a new service for a full client.
-        pub fn new_full(
+        pub fn new_full<M: MultihashDigest>(
             config: Configuration,
-        ) -> Result<(TaskManager, RpcHandlers), sc_service::error::Error> {
+        ) -> Result<(
+            TaskManager,
+            RpcHandlers,
+            Arc<NetworkService<$block, <$block as Block>::Hash, M>>,
+        ), sc_service::error::Error> {
             let PartialComponents {
                 client,
                 backend,
@@ -232,7 +240,7 @@ macro_rules! node_service {
                 let grandpa_config = sc_finality_grandpa::GrandpaParams {
                     config: grandpa_config,
                     link: grandpa_link,
-                    network,
+                    network: network.clone(),
                     inherent_data_providers,
                     telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
                     voting_rule: sc_finality_grandpa::VotingRulesBuilder::default().build(),
@@ -250,18 +258,26 @@ macro_rules! node_service {
                 sc_finality_grandpa::setup_disabled_grandpa(
                     client,
                     &inherent_data_providers,
-                    network,
+                    network.clone(),
                 )?;
             }
 
             network_starter.start_network();
-            Ok((task_manager, rpc_handlers))
+            Ok((
+                task_manager,
+                rpc_handlers,
+                network,
+            ))
         }
 
         /// Builds a new service for a light client.
-        pub fn new_light(
+        pub fn new_light<M: MultihashDigest>(
             config: Configuration,
-        ) -> Result<(TaskManager, RpcHandlers), sc_service::error::Error> {
+        ) -> Result<(
+            TaskManager,
+            RpcHandlers,
+            Arc<NetworkService<$block, <$block as Block>::Hash, M>>,
+        ), sc_service::error::Error> {
             let (client, backend, keystore, mut task_manager, on_demand) =
                 sc_service::new_light_parts::<$block, $api, $executor>(&config)?;
 
@@ -335,19 +351,23 @@ macro_rules! node_service {
                 client,
                 keystore,
                 backend,
-                network,
+                network: network.clone(),
                 network_status_sinks,
                 system_rpc_tx,
             })?;
 
             network_starter.start_network();
-            Ok((task_manager, rpc_handlers))
+            Ok((
+                task_manager,
+                rpc_handlers,
+                network,
+            ))
         }
     };
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(any(test, feature = "mock"))]
+pub mod mock {
     pub mod runtime {
         use frame_support::weights::{constants, Weight};
         use sp_runtime::traits::Block as BlockT;
@@ -561,15 +581,33 @@ mod tests {
         }
     }
 
-    #[test]
-    #[allow(dead_code)]
-    fn test_service() {
-        sc_executor::native_executor_instance!(
-            pub Executor,
-            runtime::api::dispatch,
-            runtime::native_version,
-        );
+    sc_executor::native_executor_instance!(
+        pub Executor,
+        runtime::api::dispatch,
+        runtime::native_version,
+    );
 
-        node_service!(runtime::OpaqueBlock, runtime::RuntimeApi, Executor);
+    node_service!(runtime::OpaqueBlock, runtime::RuntimeApi, Executor);
+    pub type ChainSpec = sc_service::GenericChainSpec<runtime::GenesisConfig>;
+
+    pub fn empty_chain_spec() -> ChainSpec {
+        ChainSpec::from_genesis(
+            "empty",
+            "empty",
+            sc_service::ChainType::Development,
+            || {
+                runtime::GenesisConfig {
+                    frame_system: Some(runtime::SystemConfig {
+                        code: Default::default(),
+                        changes_trie_config: Default::default(),
+                    }),
+                }
+            },
+            vec![],
+            None,
+            None,
+            None,
+            None,
+        )
     }
 }

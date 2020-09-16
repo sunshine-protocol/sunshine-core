@@ -9,7 +9,6 @@ pub use sunshine_keystore as keystore;
 
 pub mod block;
 pub mod client;
-mod light;
 #[cfg(feature = "mock")]
 pub mod mock;
 pub mod node;

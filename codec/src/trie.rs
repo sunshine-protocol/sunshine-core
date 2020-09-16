@@ -233,10 +233,18 @@ mod tests {
     use crate::hasher::{Multihash, TreeHasherBlake2b256 as TreeHasher, BLAKE2B_256_TREE};
     use libipld::cid::Cid;
     use libipld::mem::MemStore;
-    use libipld::store::{ReadonlyStore, Store};
+    use libipld::store::{Store, StoreParams};
     use sp_core::sr25519;
     use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair, TypedPublic};
     use sunshine_crypto::secret_box::SecretBox;
+
+    #[derive(Clone)]
+    struct MyStoreParams;
+    impl StoreParams for MyStoreParams {
+        type Hashes = Multihash;
+        type Codecs = Multicodec;
+        const MAX_BLOCK_SIZE: usize = u16::MAX as _;
+    }
 
     #[derive(Debug, Eq, PartialEq)]
     struct User;
@@ -328,7 +336,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_block() {
-        let store = MemStore::<Multicodec, Multihash>::new();
+        let store = MemStore::<MyStoreParams>::default();
 
         let device = TypedPair::<UserDevices>::generate().await;
         let user = TypedPair::<User>::generate().await;
@@ -353,14 +361,14 @@ mod tests {
         let ipld_block =
             libipld::block::Block::encode(TreeCodec, BLAKE2B_256_TREE, &sealed_block.offchain)
                 .unwrap();
-        store.insert(&ipld_block).await.unwrap();
+        store.insert(ipld_block.clone()).await.unwrap();
         if let Some(ancestor) = block.prev.as_ref() {
             store.unpin(ancestor).await.unwrap();
         }
 
         // retrive a block from ipfs.
-        let ipld_block2 = store.get(ipld_block.cid.clone()).await.unwrap();
-        assert_eq!(ipld_block.data, ipld_block2.data);
+        let ipld_block2 = store.get(ipld_block.cid()).await.unwrap();
+        assert_eq!(ipld_block.data(), ipld_block2.data());
 
         let offchain_block: OffchainBlock<TreeHasher> = ipld_block2.decode().unwrap();
         assert_eq!(sealed_block.offchain, offchain_block);

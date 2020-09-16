@@ -10,11 +10,7 @@ use std::io::{Read, Write};
 #[derive(Clone, Copy, Debug)]
 pub struct TreeCodec;
 
-impl Codec for TreeCodec {
-    fn decode_ipld(&self, mut bytes: &[u8]) -> Result<Ipld> {
-        Ipld::decode(*self, &mut bytes)
-    }
-}
+impl Codec for TreeCodec {}
 
 impl From<TreeCodec> for u64 {
     fn from(_: TreeCodec) -> Self {
@@ -48,7 +44,9 @@ impl Decode<TreeCodec> for Ipld {
         let tree: BTreeMap<String, Ipld> = tree
             .into_iter()
             .map(|(k, v)| {
-                let value = if let Ok(cid) = <Cid as parity_scale_codec::Decode>::decode(&mut v.as_slice()) {
+                let value = if let Ok(cid) =
+                    <Cid as parity_scale_codec::Decode>::decode(&mut v.as_slice())
+                {
                     Ipld::Link(cid)
                 } else {
                     Ipld::Bytes(v)
@@ -114,11 +112,7 @@ impl From<Multicodec> for TreeCodec {
     }
 }
 
-impl Codec for Multicodec {
-    fn decode_ipld(&self, mut bytes: &[u8]) -> Result<Ipld> {
-        Ipld::decode(*self, &mut bytes)
-    }
-}
+impl Codec for Multicodec {}
 
 impl Encode<Multicodec> for Ipld {
     fn encode<W: Write>(&self, c: Multicodec, w: &mut W) -> Result<()> {
@@ -142,10 +136,19 @@ impl Decode<Multicodec> for Ipld {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hasher::{BLAKE2B_256_TREE, Multihash, TreeHasherBlake2b256};
+    use crate::hasher::{Multihash, TreeHasherBlake2b256, BLAKE2B_256_TREE};
     use crate::trie::*;
+    use libipld::store::StoreParams;
 
-    type IpldBlock = libipld::block::Block<Multicodec, Multihash>;
+    #[derive(Clone)]
+    struct MyStoreParams;
+
+    impl StoreParams for MyStoreParams {
+        type Hashes = Multihash;
+        type Codecs = Multicodec;
+        const MAX_BLOCK_SIZE: usize = u16::MAX as _;
+    }
+    type IpldBlock = libipld::block::Block<MyStoreParams>;
 
     struct Block {
         ancestor: Option<Cid>,
@@ -153,7 +156,12 @@ mod tests {
     }
 
     impl TreeEncode<TreeHasherBlake2b256> for Block {
-        fn encode_tree(&self, block: &mut BlockBuilder<TreeHasherBlake2b256>, _prefix: &str, _proof: bool) {
+        fn encode_tree(
+            &self,
+            block: &mut BlockBuilder<TreeHasherBlake2b256>,
+            _prefix: &str,
+            _proof: bool,
+        ) {
             block.insert("ancestor".into(), &self.ancestor, true);
             block.insert("payload".into(), &self.payload, false);
         }
@@ -170,24 +178,33 @@ mod tests {
 
     #[test]
     fn test_refs() {
-        let b0 = Block { ancestor: None, payload: 0 };
+        let b0 = Block {
+            ancestor: None,
+            payload: 0,
+        };
         let b0o = b0.seal().unwrap().offchain;
         let b0i = IpldBlock::encode(TreeCodec, BLAKE2B_256_TREE, &b0o).unwrap();
-        let b0d = Ipld::decode(Multicodec::Tree, &mut &b0i.data[..]).unwrap();
+        let b0d = Ipld::decode(Multicodec::Tree, &mut b0i.data()).unwrap();
         //println!("{:?}", b0d);
         assert_eq!(b0d.references().len(), 0);
 
-        let b1 = Block { ancestor: Some(b0i.cid.clone()), payload: 1 };
+        let b1 = Block {
+            ancestor: Some(b0i.cid().clone()),
+            payload: 1,
+        };
         let b1o = b1.seal().unwrap().offchain;
         let b1i = IpldBlock::encode(TreeCodec, BLAKE2B_256_TREE, &b1o).unwrap();
-        let b1d = Ipld::decode(Multicodec::Tree, &mut &b1i.data[..]).unwrap();
+        let b1d = Ipld::decode(Multicodec::Tree, &mut b1i.data()).unwrap();
         //println!("{:?}", b1d);
         assert_eq!(b1d.references().len(), 1);
 
-        let b2 = Block { ancestor: Some(b1i.cid.clone()), payload: 2 };
+        let b2 = Block {
+            ancestor: Some(b1i.cid().clone()),
+            payload: 2,
+        };
         let b2o = b2.seal().unwrap().offchain;
         let b2i = IpldBlock::encode(TreeCodec, BLAKE2B_256_TREE, &b2o).unwrap();
-        let b2d = Ipld::decode(Multicodec::Tree, &mut &b2i.data[..]).unwrap();
+        let b2d = Ipld::decode(Multicodec::Tree, &mut b2i.data()).unwrap();
         //println!("{:?}", b2d);
         assert_eq!(b2d.references().len(), 1);
     }

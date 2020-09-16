@@ -1,12 +1,23 @@
 pub use sc_service::{
     error::Error as ScServiceError, ChainSpec, Configuration, RpcHandlers, TaskManager,
 };
-use substrate_subxt::Runtime;
+use sp_runtime::traits::Block;
+use std::sync::Arc;
+use substrate_subxt::{sp_runtime, Runtime};
 use thiserror::Error;
+
+pub type NetworkService<N> = Arc<
+    sc_network::NetworkService<
+        <N as NodeConfig>::Block,
+        <<N as NodeConfig>::Block as Block>::Hash,
+        crate::codec::Multihash,
+    >,
+>;
 
 pub trait NodeConfig {
     type ChainSpec: ChainSpec + Clone + 'static;
     type Runtime: Runtime + 'static;
+    type Block: Block + 'static;
     fn impl_name() -> &'static str;
     fn impl_version() -> &'static str;
     fn author() -> &'static str;
@@ -17,10 +28,10 @@ pub trait NodeConfig {
     ) -> std::result::Result<Self::ChainSpec, ChainSpecError>;
     fn new_light(
         config: Configuration,
-    ) -> core::result::Result<(TaskManager, RpcHandlers), ScServiceError>;
+    ) -> std::result::Result<(TaskManager, RpcHandlers, NetworkService<Self>), ScServiceError>;
     fn new_full(
         config: Configuration,
-    ) -> core::result::Result<(TaskManager, RpcHandlers), ScServiceError>;
+    ) -> std::result::Result<(TaskManager, RpcHandlers, NetworkService<Self>), ScServiceError>;
 }
 
 #[derive(Debug, Error)]

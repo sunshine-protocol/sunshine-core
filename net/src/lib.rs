@@ -122,6 +122,7 @@ impl Stream for Subscription {
                         continue;
                     }
                 }
+                Event::Dht(DhtEvent::BootstrapComplete) => NetworkEvent::BootstrapComplete,
                 Event::Bitswap(BitswapEvent::ReceivedBlock(peer_id, cid, data)) => {
                     NetworkEvent::ReceivedBlock(peer_id, cid, data.to_vec())
                 }
@@ -146,6 +147,7 @@ mod tests {
     use libipld::multihash::SHA2_256;
     use libipld::raw::RawCodec;
     use libipld::store::{DefaultStoreParams, Store};
+    use sc_network::config::{MultiaddrWithPeerId, TransportConfig};
     use sp_runtime::traits::Block as BlockT;
     use substrate_subxt::client::{DatabaseConfig, KeystoreConfig, Role, SubxtClientConfig};
     use sunshine_node_utils::mock::{empty_chain_spec, new_light, runtime};
@@ -160,9 +162,9 @@ mod tests {
     >;
     type DefaultIpfs = Ipfs<DefaultStoreParams, Storage, Network>;
 
-    fn create_store(bootstrap: Vec<(Multiaddr, PeerId)>) -> (DefaultIpfs, TempDir) {
+    fn create_store(bootstrap: Vec<(Multiaddr, PeerId)>, boot: bool) -> (DefaultIpfs, TempDir) {
         let tmp = TempDir::new("").unwrap();
-        let config = SubxtClientConfig {
+        let mut config = SubxtClientConfig {
             impl_name: "impl_name",
             impl_version: "impl_version",
             author: "author",
@@ -174,7 +176,25 @@ mod tests {
             telemetry: None,
         }
         .into_service_config();
-        let (_task_manager, _rpc, network) = new_light(config).unwrap();
+        if boot {
+            config.network.listen_addresses = vec!["/ip4/127.0.0.1/tcp/33333".parse().unwrap()];
+            config.network.public_addresses = vec!["/ip4/127.0.0.1/tcp/33333".parse().unwrap()];
+        } else {
+            config.network.listen_addresses = vec!["/ip4/127.0.0.1/tcp/0".parse().unwrap()];
+        }
+        config.network.transport = TransportConfig::Normal {
+            enable_mdns: bootstrap.is_empty(),
+            allow_private_ipv4: true,
+            wasm_external_transport: None,
+            use_yamux_flow_control: false,
+        };
+        config.network.boot_nodes = bootstrap.into_iter().map(|(multiaddr, peer_id)| MultiaddrWithPeerId {
+            multiaddr,
+            peer_id,
+        }).collect();
+        config.network.allow_non_globals_in_dht = true;
+        let (mut task_manager, _rpc, network) = new_light(config).unwrap();
+        task::spawn(async move { task_manager.future().await });
 
         let storage = Arc::new(StorageService::open(tmp.path().join("ipfs-embed")).unwrap());
         let network = Arc::new(SubstrateNetwork::new(network));
@@ -189,7 +209,7 @@ mod tests {
     #[async_std::test]
     async fn test_local_store() {
         env_logger::try_init().ok();
-        let (store, _tmp) = create_store(vec![]);
+        let (store, _tmp) = create_store(vec![], false);
         let block = create_block(b"test_local_store");
         store.insert(block.clone()).await.unwrap();
         let block2 = store.get(block.cid()).await.unwrap();
@@ -200,8 +220,8 @@ mod tests {
     #[cfg(not(target_os = "macos"))] // mdns doesn't work on macos in github actions
     async fn test_exchange_mdns() {
         env_logger::try_init().ok();
-        let (store1, _tmp1) = create_store(vec![]);
-        let (store2, _tmp2) = create_store(vec![]);
+        let (store1, _tmp1) = create_store(vec![], false);
+        let (store2, _tmp2) = create_store(vec![], false);
         let block = create_block(b"test_exchange_mdns");
         store1.insert(block.clone()).await.unwrap();
         let block2 = store2.get(block.cid()).await.unwrap();
@@ -212,8 +232,8 @@ mod tests {
     #[cfg(not(target_os = "macos"))] // mdns doesn't work on macos in github action
     async fn test_received_want_before_insert() {
         env_logger::try_init().ok();
-        let (store1, _tmp1) = create_store(vec![]);
-        let (store2, _tmp2) = create_store(vec![]);
+        let (store1, _tmp1) = create_store(vec![], false);
+        let (store2, _tmp2) = create_store(vec![], false);
         let block = create_block(b"test_received_want_before_insert");
 
         let get_cid = block.cid().clone();
@@ -230,15 +250,16 @@ mod tests {
     #[async_std::test]
     async fn test_exchange_kad() {
         env_logger::try_init().ok();
-        let (store, _tmp) = create_store(vec![]);
+        let (store, _tmp) = create_store(vec![], true);
         // make sure bootstrap node has started
         task::sleep(Duration::from_millis(1000)).await;
         let bootstrap = vec![(
             store.external_addresses()[0].clone(),
             store.local_peer_id().clone(),
         )];
-        let (store1, _tmp1) = create_store(bootstrap.clone());
-        let (store2, _tmp2) = create_store(bootstrap);
+        let (store1, _tmp1) = create_store(bootstrap.clone(), false);
+        let (store2, _tmp2) = create_store(bootstrap, false);
+
         let block = create_block(b"test_exchange_kad");
         store1.insert(block.clone()).await.unwrap();
         // wait for entry to propagate
@@ -250,7 +271,7 @@ mod tests {
     #[async_std::test]
     async fn test_provider_not_found() {
         env_logger::try_init().ok();
-        let (store1, _tmp) = create_store(vec![]);
+        let (store1, _tmp) = create_store(vec![], false);
         let block = create_block(b"test_provider_not_found");
         if store1
             .get(block.cid())

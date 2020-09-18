@@ -6,15 +6,15 @@ use std::sync::Arc;
 use substrate_subxt::{sp_runtime, Runtime};
 use thiserror::Error;
 
-pub type NetworkService<N> = Arc<
+pub type Network<N> = Arc<
     sc_network::NetworkService<
-        <N as NodeConfig>::Block,
-        <<N as NodeConfig>::Block as Block>::Hash,
+        <N as Node>::Block,
+        <<N as Node>::Block as Block>::Hash,
         crate::codec::Multihash,
     >,
 >;
 
-pub trait NodeConfig {
+pub trait Node {
     type ChainSpec: ChainSpec + Clone + 'static;
     type Runtime: Runtime + 'static;
     type Block: Block + 'static;
@@ -28,10 +28,10 @@ pub trait NodeConfig {
     ) -> std::result::Result<Self::ChainSpec, ChainSpecError>;
     fn new_light(
         config: Configuration,
-    ) -> std::result::Result<(TaskManager, RpcHandlers, NetworkService<Self>), ScServiceError>;
+    ) -> std::result::Result<(TaskManager, RpcHandlers, Network<Self>), ScServiceError>;
     fn new_full(
         config: Configuration,
-    ) -> std::result::Result<(TaskManager, RpcHandlers, NetworkService<Self>), ScServiceError>;
+    ) -> std::result::Result<(TaskManager, RpcHandlers, Network<Self>), ScServiceError>;
 }
 
 #[derive(Debug, Error)]

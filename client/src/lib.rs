@@ -13,15 +13,15 @@ pub mod client;
 pub mod mock;
 pub mod node;
 
+pub use crate::node::{Network, Node};
 use libipld::store::Store;
-use substrate_subxt::Runtime;
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
 use sunshine_crypto::signer::GenericSubxtSigner;
 use thiserror::Error;
 
 /// The client trait.
 #[async_trait]
-pub trait Client<R: Runtime>: Send + Sync {
+pub trait Client<N: Node>: Send + Sync {
     /// The key type stored in the keystore.
     type KeyType: KeyType;
 
@@ -30,6 +30,9 @@ pub trait Client<R: Runtime>: Send + Sync {
 
     /// The offchain client type.
     type OffchainClient: OffchainClient;
+
+    /// Returns the network service.
+    fn network(&self) -> Option<&Network<N>>;
 
     /// Returns a reference to the keystore.
     fn keystore(&self) -> &Self::Keystore;
@@ -44,13 +47,13 @@ pub trait Client<R: Runtime>: Send + Sync {
     fn keychain_mut(&mut self) -> &mut KeyChain;
 
     /// Returns a reference to the signer.
-    fn signer(&self) -> Result<&dyn Signer<R>>;
+    fn signer(&self) -> Result<&dyn Signer<N::Runtime>>;
 
     /// Returns a mutable reference to the signer.
-    fn signer_mut(&mut self) -> Result<&mut dyn Signer<R>>;
+    fn signer_mut(&mut self) -> Result<&mut dyn Signer<N::Runtime>>;
 
     /// Returns a subxt signer.
-    fn chain_signer<'a>(&'a self) -> Result<GenericSubxtSigner<'a, R>> {
+    fn chain_signer<'a>(&'a self) -> Result<GenericSubxtSigner<'a, N::Runtime>> {
         Ok(GenericSubxtSigner(self.signer()?))
     }
 
@@ -78,7 +81,7 @@ pub trait Client<R: Runtime>: Send + Sync {
     async fn unlock(&mut self, password: &SecretString) -> Result<()>;
 
     /// Returns a reference to the subxt client.
-    fn chain_client(&self) -> &substrate_subxt::Client<R>;
+    fn chain_client(&self) -> &substrate_subxt::Client<N::Runtime>;
 
     /// Returns a reference to the offchain client.
     fn offchain_client(&self) -> &Self::OffchainClient;

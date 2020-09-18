@@ -3,12 +3,11 @@ pub mod wallet;
 pub use sunshine_client_utils as client;
 
 use substrate_subxt::system::System;
-use substrate_subxt::Runtime;
 use sunshine_client_utils::crypto::bip39::Mnemonic;
 use sunshine_client_utils::crypto::keychain::TypedPair;
 use sunshine_client_utils::crypto::keystore::{Keystore, KeystoreInitialized};
 use sunshine_client_utils::crypto::secrecy::{ExposeSecret, SecretString};
-pub use sunshine_client_utils::{Client, ConfigDirNotFound, Result};
+pub use sunshine_client_utils::{Client, ConfigDirNotFound, Node, Result};
 
 pub fn ask_for_new_password(length: u8) -> std::result::Result<SecretString, std::io::Error> {
     loop {
@@ -56,15 +55,15 @@ pub async fn ask_for_phrase(prompt: &str) -> std::result::Result<Mnemonic, std::
     }
 }
 
-pub async fn set_key<T, C>(
+pub async fn set_key<N, C>(
     client: &mut C,
     paperkey: bool,
     suri: Option<&str>,
     force: bool,
-) -> Result<<T as System>::AccountId>
+) -> Result<<N::Runtime as System>::AccountId>
 where
-    T: Runtime,
-    C: Client<T>,
+    N: Node,
+    C: Client<N>,
 {
     if client.keystore().is_initialized().await? && !force {
         return Err(KeystoreInitialized.into());

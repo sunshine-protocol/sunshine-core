@@ -1,5 +1,5 @@
-use crate::client::GenericClient;
-use crate::node::NodeConfig;
+use crate::client::{GenericClient, OffchainParams};
+use crate::node::Node;
 use crate::{Client, OffchainClient};
 use sp_core::Pair;
 pub use sp_keyring::AccountKeyring;
@@ -11,16 +11,15 @@ use substrate_subxt::client::{
 use substrate_subxt::{
     sp_core, sp_runtime, system::System, ClientBuilder, Runtime, SignedExtension, SignedExtra,
 };
-use sunshine_codec::{Multicodec, Multihash};
 use sunshine_crypto::keychain::{KeyChain, KeyType, TypedPair};
 use sunshine_crypto::secrecy::SecretString;
 pub use tempdir::TempDir;
 
-pub type OffchainStoreImpl = libipld::mem::MemStore<Multicodec, Multihash>;
+pub type OffchainStoreImpl = libipld::mem::MemStore<OffchainParams>;
 pub type KeystoreImpl<K> = sunshine_crypto::keystore::mock::MemKeystore<K>;
 pub type TestNode = jsonrpsee::Client;
 
-pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
+pub fn build_test_node<N: Node>() -> (TestNode, TempDir) {
     let tmp = TempDir::new("sunshine-identity-").expect("failed to create tempdir");
     let config = SubxtClientConfig {
         impl_name: N::impl_name(),
@@ -36,14 +35,14 @@ pub fn build_test_node<N: NodeConfig>() -> (TestNode, TempDir) {
         telemetry: None,
     }
     .into_service_config();
-    let (task_manager, rpc) = N::new_full(config).unwrap();
+    let (task_manager, rpc, _) = N::new_full(config).unwrap();
     let client = SubxtClient::new(task_manager, rpc).into();
     (client, tmp)
 }
 
 impl<N, K, O> GenericClient<N, K, KeystoreImpl<K>, O>
 where
-    N: NodeConfig,
+    N: Node,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
     <<<N::Runtime as Runtime>::Extra as SignedExtra<N::Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
     <<N::Runtime as Runtime>::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
@@ -58,6 +57,7 @@ where
 {
     pub async fn mock(test_node: &TestNode, account: AccountKeyring) -> Self {
         let mut me = Self {
+            network: None,
             keystore: KeystoreImpl::<K>::new(),
             keychain: KeyChain::new(),
             signer: None,
@@ -66,7 +66,7 @@ where
                 .build()
                 .await
                 .unwrap(),
-            offchain_client: O::from(OffchainStoreImpl::new()),
+            offchain_client: O::from(OffchainStoreImpl::default()),
         };
         let key = TypedPair::from_suri(&account.to_seed()).unwrap();
         let password = SecretString::new("password".to_string());
@@ -77,7 +77,7 @@ where
 
 impl<N, K, O> GenericClient<N, K, crate::client::KeystoreImpl<K>, O>
 where
-    N: NodeConfig,
+    N: Node,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
     <<<N::Runtime as Runtime>::Extra as SignedExtra<N::Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
     <<N::Runtime as Runtime>::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
@@ -96,6 +96,7 @@ where
     ) -> (Self, TempDir) {
         let tmp = TempDir::new("sunshine-keystore").unwrap();
         let mut me = Self {
+            network: None,
             keystore: crate::client::KeystoreImpl::<K>::new(tmp.path()),
             keychain: KeyChain::new(),
             signer: None,
@@ -104,7 +105,7 @@ where
                 .build()
                 .await
                 .unwrap(),
-            offchain_client: O::from(OffchainStoreImpl::new()),
+            offchain_client: O::from(OffchainStoreImpl::default()),
         };
         let key = TypedPair::from_suri(&account.to_seed()).unwrap();
         let password = SecretString::new("password".to_string());

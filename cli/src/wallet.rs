@@ -5,7 +5,7 @@ use substrate_subxt::sp_core::crypto::Ss58Codec;
 use substrate_subxt::system::{AccountStoreExt, System};
 use substrate_subxt::{Runtime, SignedExtension, SignedExtra};
 use sunshine_client_utils::crypto::ss58::Ss58;
-use sunshine_client_utils::{Client, Result};
+use sunshine_client_utils::{Client, Node, Result};
 use thiserror::Error;
 
 #[derive(Clone, Debug, Clap)]
@@ -14,12 +14,12 @@ pub struct WalletBalanceCommand {
 }
 
 impl WalletBalanceCommand {
-    pub async fn exec<R: Runtime + Balances, C: Client<R>>(&self, client: &C) -> Result<()>
+    pub async fn exec<N: Node, C: Client<N>>(&self, client: &C) -> Result<()>
     where
-        <R as System>::AccountId: Ss58Codec,
-        R: System<AccountData = AccountData<u128>>,
+        N::Runtime: System<AccountData = AccountData<u128>> + Balances,
+        <N::Runtime as System>::AccountId: Ss58Codec,
     {
-        let account_id: Ss58<R> = if let Some(identifier) = &self.identifier {
+        let account_id: Ss58<N::Runtime> = if let Some(identifier) = &self.identifier {
             identifier.parse()?
         } else {
             Ss58(client.signer()?.account_id().clone())
@@ -37,14 +37,15 @@ pub struct WalletTransferCommand {
 }
 
 impl WalletTransferCommand {
-    pub async fn exec<R: Runtime + Balances, C: Client<R>>(&self, client: &C) -> Result<()>
+    pub async fn exec<N: Node, C: Client<N>>(&self, client: &C) -> Result<()>
     where
-        <R as System>::AccountId: Ss58Codec + Into<<R as System>::Address>,
-        <<<R as Runtime>::Extra as SignedExtra<R>>::Extra as SignedExtension>::AdditionalSigned:
+        N::Runtime: Balances,
+        <N::Runtime as System>::AccountId: Ss58Codec + Into<<N::Runtime as System>::Address>,
+        <<<N::Runtime as Runtime>::Extra as SignedExtra<N::Runtime>>::Extra as SignedExtension>::AdditionalSigned:
             Send + Sync,
-        <R as Balances>::Balance: From<u128> + Display,
+        <N::Runtime as Balances>::Balance: From<u128> + Display,
     {
-        let account_id: Ss58<R> = self.identifier.parse()?;
+        let account_id: Ss58<N::Runtime> = self.identifier.parse()?;
         let signer = client.chain_signer()?;
         let event = client
             .chain_client()

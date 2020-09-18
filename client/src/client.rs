@@ -1,4 +1,4 @@
-use crate::node::{NetworkService, NodeConfig};
+use crate::node::{Network, Node};
 use crate::{Client, OffchainClient};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -35,11 +35,8 @@ impl StoreParams for OffchainParams {
     type Hashes = Multihash;
 }
 
-type OffchainNetwork<N> = SubstrateNetwork<
-    <N as NodeConfig>::Block,
-    <<N as NodeConfig>::Block as Block>::Hash,
-    OffchainParams,
->;
+type OffchainNetwork<N> =
+    SubstrateNetwork<<N as Node>::Block, <<N as Node>::Block as Block>::Hash, OffchainParams>;
 pub type OffchainStoreImpl<N> =
     Ipfs<OffchainParams, StorageService<OffchainParams>, OffchainNetwork<N>>;
 pub type KeystoreImpl<K> = sunshine_keystore::Keystore<K>;
@@ -48,8 +45,8 @@ pub type KeystoreImpl<K> = sunshine_keystore::Keystore<K>;
 #[error("{0}")]
 pub struct ServiceError(String);
 
-pub struct GenericClient<N: NodeConfig, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
-    pub(crate) network: NetworkService<N>,
+pub struct GenericClient<N: Node, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
+    pub(crate) network: Option<Network<N>>,
     pub(crate) keystore: KS,
     pub(crate) keychain: KeyChain,
     pub(crate) signer: Option<GenericSigner<N::Runtime, K>>,
@@ -58,9 +55,9 @@ pub struct GenericClient<N: NodeConfig, K: KeyType, KS: Keystore<K>, O: Send + S
 }
 
 #[async_trait]
-impl<N, K, KS, O> Client<N::Runtime> for GenericClient<N, K, KS, O>
+impl<N, K, KS, O> Client<N> for GenericClient<N, K, KS, O>
 where
-    N: NodeConfig,
+    N: Node,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
     <<<N::Runtime as Runtime>::Extra as SignedExtra<N::Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
     <<N::Runtime as Runtime>::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
@@ -77,6 +74,10 @@ where
     type Keystore = KS;
     type KeyType = K;
     type OffchainClient = O;
+
+    fn network(&self) -> Option<&Network<N>> {
+        self.network.as_ref()
+    }
 
     fn keystore(&self) -> &Self::Keystore {
         &self.keystore
@@ -146,7 +147,7 @@ where
 
 impl<N, K, O: From<OffchainStoreImpl<N>>> GenericClient<N, K, KeybaseKeystore<K>, O>
 where
-    N: NodeConfig,
+    N: Node,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
     <<<N::Runtime as Runtime>::Extra as SignedExtra<N::Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
     <<N::Runtime as Runtime>::Signature as Verify>::Signer: From<<K::Pair as Pair>::Public>
@@ -208,16 +209,12 @@ where
         };
 
         Ok(Self {
-            network,
+            network: Some(network),
             keystore,
             keychain,
             signer,
             chain_client,
             offchain_client,
         })
-    }
-
-    pub fn network(&self) -> &NetworkService<N> {
-        &self.network
     }
 }

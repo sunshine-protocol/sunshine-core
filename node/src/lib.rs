@@ -27,8 +27,8 @@ macro_rules! node_service {
         use tiny_multihash::MultihashDigest;
         use $crate::{
             sc_basic_authorship, sc_client_api, sc_consensus, sc_consensus_aura,
-            sc_finality_grandpa, sc_network, sc_service, sc_transaction_pool,
-            sp_consensus, sp_consensus_aura, sp_core, sp_finality_grandpa, sp_inherents,
+            sc_finality_grandpa, sc_network, sc_service, sc_transaction_pool, sp_consensus,
+            sp_consensus_aura, sp_core, sp_finality_grandpa, sp_inherents,
         };
 
         type FullClient = sc_service::TFullClient<$block, $api, $executor>;
@@ -113,11 +113,14 @@ macro_rules! node_service {
         /// Builds a new service for a full client.
         pub fn new_full<M: MultihashDigest>(
             config: Configuration,
-        ) -> Result<(
-            TaskManager,
-            RpcHandlers,
-            Arc<NetworkService<$block, <$block as Block>::Hash, M>>,
-        ), sc_service::error::Error> {
+        ) -> Result<
+            (
+                TaskManager,
+                RpcHandlers,
+                Arc<NetworkService<$block, <$block as Block>::Hash, M>>,
+            ),
+            sc_service::error::Error,
+        > {
             let PartialComponents {
                 client,
                 backend,
@@ -263,21 +266,20 @@ macro_rules! node_service {
             }
 
             network_starter.start_network();
-            Ok((
-                task_manager,
-                rpc_handlers,
-                network,
-            ))
+            Ok((task_manager, rpc_handlers, network))
         }
 
         /// Builds a new service for a light client.
         pub fn new_light<M: MultihashDigest>(
             config: Configuration,
-        ) -> Result<(
-            TaskManager,
-            RpcHandlers,
-            Arc<NetworkService<$block, <$block as Block>::Hash, M>>,
-        ), sc_service::error::Error> {
+        ) -> Result<
+            (
+                TaskManager,
+                RpcHandlers,
+                Arc<NetworkService<$block, <$block as Block>::Hash, M>>,
+            ),
+            sc_service::error::Error,
+        > {
             let (client, backend, keystore, mut task_manager, on_demand) =
                 sc_service::new_light_parts::<$block, $api, $executor>(&config)?;
 
@@ -357,11 +359,7 @@ macro_rules! node_service {
             })?;
 
             network_starter.start_network();
-            Ok((
-                task_manager,
-                rpc_handlers,
-                network,
-            ))
+            Ok((task_manager, rpc_handlers, network))
         }
     };
 }
@@ -384,13 +382,11 @@ pub mod mock {
             "empty",
             "empty",
             sc_service::ChainType::Development,
-            || {
-                runtime::GenesisConfig {
-                    frame_system: Some(runtime::SystemConfig {
-                        code: runtime::WASM_BINARY.unwrap().to_vec(),
-                        changes_trie_config: Default::default(),
-                    }),
-                }
+            || runtime::GenesisConfig {
+                frame_system: Some(runtime::SystemConfig {
+                    code: runtime::WASM_BINARY.unwrap().to_vec(),
+                    changes_trie_config: Default::default(),
+                }),
             },
             vec![],
             None,

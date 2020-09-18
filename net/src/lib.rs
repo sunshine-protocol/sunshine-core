@@ -149,9 +149,9 @@ mod tests {
     use libipld::store::{DefaultStoreParams, Store};
     use sc_network::config::{MultiaddrWithPeerId, TransportConfig};
     use sp_runtime::traits::Block as BlockT;
+    use std::time::Duration;
     use substrate_subxt::client::{DatabaseConfig, KeystoreConfig, Role, SubxtClientConfig};
     use sunshine_node_utils::mock::{empty_chain_spec, new_light, runtime};
-    use std::time::Duration;
     use tempdir::TempDir;
 
     type Storage = StorageService<DefaultStoreParams>;
@@ -169,7 +169,9 @@ mod tests {
             impl_version: "impl_version",
             author: "author",
             copyright_start_year: 2020,
-            db: DatabaseConfig::ParityDb { path: tmp.path().join("light-client") },
+            db: DatabaseConfig::ParityDb {
+                path: tmp.path().join("light-client"),
+            },
             keystore: KeystoreConfig::InMemory,
             role: Role::Light,
             chain_spec: empty_chain_spec(),
@@ -188,10 +190,10 @@ mod tests {
             wasm_external_transport: None,
             use_yamux_flow_control: false,
         };
-        config.network.boot_nodes = bootstrap.into_iter().map(|(multiaddr, peer_id)| MultiaddrWithPeerId {
-            multiaddr,
-            peer_id,
-        }).collect();
+        config.network.boot_nodes = bootstrap
+            .into_iter()
+            .map(|(multiaddr, peer_id)| MultiaddrWithPeerId { multiaddr, peer_id })
+            .collect();
         config.network.allow_non_globals_in_dht = true;
         let (mut task_manager, _rpc, network) = new_light(config).unwrap();
         task::spawn(async move { task_manager.future().await });

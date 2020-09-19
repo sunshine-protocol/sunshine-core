@@ -13,6 +13,7 @@ pub use sp_consensus_aura;
 pub use sp_core;
 pub use sp_finality_grandpa;
 pub use sp_inherents;
+pub use tiny_multihash;
 
 #[macro_export]
 macro_rules! node_service {
@@ -28,7 +29,7 @@ macro_rules! node_service {
         use $crate::{
             sc_basic_authorship, sc_client_api, sc_consensus, sc_consensus_aura,
             sc_finality_grandpa, sc_network, sc_service, sc_transaction_pool, sp_consensus,
-            sp_consensus_aura, sp_core, sp_finality_grandpa, sp_inherents,
+            sp_consensus_aura, sp_core, sp_finality_grandpa, sp_inherents, tiny_multihash,
         };
 
         type FullClient = sc_service::TFullClient<$block, $api, $executor>;

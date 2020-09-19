@@ -14,7 +14,7 @@ pub type Network<N> = Arc<
     >,
 >;
 
-pub trait Node {
+pub trait Node: 'static {
     type ChainSpec: ChainSpec + Clone + 'static;
     type Runtime: Runtime + 'static;
     type Block: Block + 'static;

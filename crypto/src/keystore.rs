@@ -40,7 +40,13 @@ pub trait Keystore<K: KeyType>: Send + Sync {
 pub mod mock {
     use super::*;
     use secrecy::ExposeSecret;
+    use sp_core::sr25519;
+    pub struct DeviceKey;
 
+    impl KeyType for DeviceKey {
+        const KEY_TYPE: u8 = 0;
+        type Pair = sr25519::Pair;
+    }
     pub struct MemKeystore<K: KeyType> {
         keystore: Option<(TypedPair<K>, SecretString)>,
         key: Option<TypedPair<K>>,
@@ -104,20 +110,12 @@ pub mod mock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::keychain::{KeyChain, KeyType, TypedPublic};
+    use crate::keychain::{KeyChain, TypedPublic};
     use crate::secret_box::SecretBox;
     use crate::signer::{GenericSigner, Signer};
-    use mock::MemKeystore;
-    use sp_core::sr25519;
+    use mock::{DeviceKey, MemKeystore};
     use sp_keyring::AccountKeyring;
     use substrate_subxt::DefaultNodeRuntime;
-
-    pub struct DeviceKey;
-
-    impl KeyType for DeviceKey {
-        const KEY_TYPE: u8 = 0;
-        type Pair = sr25519::Pair;
-    }
 
     #[async_std::test]
     async fn test_flow() {

@@ -2,6 +2,8 @@ pub use anyhow::{Error, Result};
 pub use async_trait::async_trait;
 pub use sc_network;
 pub use sc_service;
+#[cfg(feature = "mock")]
+pub use sp_keyring::AccountKeyring;
 pub use sunshine_codec as codec;
 pub use sunshine_crypto as crypto;
 pub use sunshine_crypto::keystore::{Keystore, KeystoreLocked};
@@ -102,7 +104,6 @@ pub trait Node: Clone + Copy + Unpin + Send + Sync + 'static {
 
     #[cfg(feature = "mock")]
     fn new_mock() -> MockNode<Self> {
-        use sp_keyring::AccountKeyring;
         use tempdir::TempDir;
 
         let tmp = TempDir::new("sunshine-core-").expect("failed to create tempdir");

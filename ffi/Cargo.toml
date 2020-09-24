@@ -9,3 +9,10 @@ allo-isolate = { version = "0.1.7", features = ["catch-unwind"] }
 async-std = "1.6.4"
 log = "0.4.11"
 once_cell = "1.4.1"
+
+[dev-dependencies]
+sunshine-client-utils = { path = "../client" }
+sunshine-node-utils = { path = "../node", features = ["mock"] }
+sunshine-crypto = { path = "../crypto", features = ["mock"] }
+substrate-subxt = "0.12.0"
+ipfs-embed = "0.7"

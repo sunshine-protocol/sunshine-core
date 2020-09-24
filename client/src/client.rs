@@ -14,9 +14,9 @@ use sunshine_crypto::secrecy::SecretString;
 use sunshine_crypto::signer::{GenericSigner, GenericSubxtSigner, Signer};
 use sunshine_keystore::Keystore as KeybaseKeystore;
 
-pub struct GenericClient<N: Node, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
+pub struct GenericClient<N: Node, K: KeyType, O: Send + Sync> {
     network: Network<N>,
-    keystore: KS,
+    keystore: KeybaseKeystore<K>,
     keychain: KeyChain,
     signer: Option<GenericSigner<N::Runtime, K>>,
     chain_client: substrate_subxt::Client<N::Runtime>,
@@ -24,7 +24,7 @@ pub struct GenericClient<N: Node, K: KeyType, KS: Keystore<K>, O: Send + Sync> {
 }
 
 #[async_trait]
-impl<N, K, KS, O> Client<N> for GenericClient<N, K, KS, O>
+impl<N, K, O> Client<N> for GenericClient<N, K, O>
 where
     N: Node,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,
@@ -37,11 +37,10 @@ where
         + Sync,
     K: KeyType,
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
-    KS: Keystore<K>,
     O: OffchainClient<N>,
 {
-    type Keystore = KS;
     type KeyType = K;
+    type Keystore = KeybaseKeystore<K>;
     type OffchainClient = O;
 
     fn network(&self) -> &Network<N> {
@@ -114,7 +113,7 @@ where
     }
 }
 
-impl<N, K, O> GenericClient<N, K, KeybaseKeystore<K>, O>
+impl<N, K, O> GenericClient<N, K, O>
 where
     N: Node,
     <N::Runtime as System>::AccountId: Into<<N::Runtime as System>::Address>,

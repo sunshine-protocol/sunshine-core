@@ -151,7 +151,8 @@ macro_rules! node_service {
                     block_announce_validator_builder: None,
                     finality_proof_request_builder: None,
                     finality_proof_provider: Some(finality_proof_provider.clone()),
-                }.build_network::<M>()?;
+                }
+                .build_network::<M>()?;
 
             if config.offchain_worker.enabled {
                 sc_service::build_offchain_workers(
@@ -331,7 +332,8 @@ macro_rules! node_service {
                     block_announce_validator_builder: None,
                     finality_proof_request_builder: Some(finality_proof_request_builder),
                     finality_proof_provider: Some(finality_proof_provider),
-                }.build_network::<M>()?;
+                }
+                .build_network::<M>()?;
 
             if config.offchain_worker.enabled {
                 sc_service::build_offchain_workers(

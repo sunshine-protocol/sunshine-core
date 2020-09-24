@@ -189,7 +189,7 @@ mod tests {
         assert_eq!(b0d.references().len(), 0);
 
         let b1 = Block {
-            ancestor: Some(b0i.cid().clone()),
+            ancestor: Some(*b0i.cid()),
             payload: 1,
         };
         let b1o = b1.seal().unwrap().offchain;
@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(b1d.references().len(), 1);
 
         let b2 = Block {
-            ancestor: Some(b1i.cid().clone()),
+            ancestor: Some(*b1i.cid()),
             payload: 2,
         };
         let b2o = b2.seal().unwrap().offchain;

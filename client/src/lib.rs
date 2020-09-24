@@ -17,9 +17,10 @@ pub use client::*;
 
 use ipfs_embed::db::StorageService;
 use ipfs_embed::Ipfs;
-use libipld::store::StoreParams;
+use libipld::store::{Store, StoreParams};
 use sc_service::{ChainSpec, Configuration, RpcHandlers, TaskManager};
 use sp_runtime::traits::Block;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -139,7 +140,7 @@ pub trait Client<N: Node>: Send + Sync {
     type Keystore: Keystore<Self::KeyType>;
 
     /// The offchain client type.
-    type OffchainClient: OffchainClient<N>;
+    type OffchainClient: OffchainClient<OffchainStore<N>>;
 
     /// Returns the network service.
     fn network(&self) -> &Network<N>;
@@ -203,10 +204,7 @@ pub type OffchainStore<N> =
     Ipfs<OffchainConfig<N>, StorageService<OffchainConfig<N>>, OffchainNetwork<N>>;
 
 /// The offchain client trait.
-pub trait OffchainClient<N: Node>: From<OffchainStore<N>> + Send + Sync {
-    /// Returns the underlying store.
-    fn store(&self) -> &OffchainStore<N>;
-}
+pub trait OffchainClient<S: Store>: Deref<Target = S> + From<S> + Send + Sync {}
 
 #[derive(Clone)]
 pub struct OffchainConfig<N: Node> {

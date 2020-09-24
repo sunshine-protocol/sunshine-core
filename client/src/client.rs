@@ -1,4 +1,4 @@
-use crate::{Client, Network, Node, OffchainClient, OffchainConfig};
+use crate::{Client, Network, Node, OffchainClient, OffchainConfig, OffchainStore};
 use anyhow::Result;
 use async_trait::async_trait;
 use sp_core::Pair;
@@ -37,7 +37,7 @@ where
         + Sync,
     K: KeyType,
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
-    O: OffchainClient<N>,
+    O: OffchainClient<OffchainStore<N>>,
 {
     type KeyType = K;
     type Keystore = KeybaseKeystore<K>;
@@ -126,7 +126,7 @@ where
         + Sync,
     K: KeyType,
     <K::Pair as Pair>::Signature: Into<<N::Runtime as Runtime>::Signature>,
-    O: OffchainClient<N>,
+    O: OffchainClient<OffchainStore<N>>,
 {
     pub async fn new(
         root: &Path,

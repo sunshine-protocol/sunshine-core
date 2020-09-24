@@ -141,7 +141,7 @@ macro_rules! node_service {
                 );
 
             let (network, network_status_sinks, system_rpc_tx, network_starter) =
-                sc_service::build_network(sc_service::BuildNetworkParams {
+                sc_service::BuildNetworkParams {
                     config: &config,
                     client: client.clone(),
                     transaction_pool: transaction_pool.clone(),
@@ -151,7 +151,7 @@ macro_rules! node_service {
                     block_announce_validator_builder: None,
                     finality_proof_request_builder: None,
                     finality_proof_provider: Some(finality_proof_provider.clone()),
-                })?;
+                }.build_network::<M>()?;
 
             if config.offchain_worker.enabled {
                 sc_service::build_offchain_workers(
@@ -321,7 +321,7 @@ macro_rules! node_service {
                 );
 
             let (network, network_status_sinks, system_rpc_tx, network_starter) =
-                sc_service::build_network(sc_service::BuildNetworkParams {
+                sc_service::BuildNetworkParams {
                     config: &config,
                     client: client.clone(),
                     transaction_pool: transaction_pool.clone(),
@@ -331,7 +331,7 @@ macro_rules! node_service {
                     block_announce_validator_builder: None,
                     finality_proof_request_builder: Some(finality_proof_request_builder),
                     finality_proof_provider: Some(finality_proof_provider),
-                })?;
+                }.build_network::<M>()?;
 
             if config.offchain_worker.enabled {
                 sc_service::build_offchain_workers(

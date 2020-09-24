@@ -198,9 +198,15 @@ mod tests {
         let (mut task_manager, _rpc, network) = new_light(config).unwrap();
         task::spawn(async move { task_manager.future().await });
 
-        let storage = Arc::new(StorageService::open(tmp.path().join("ipfs-embed")).unwrap());
+        let sled_config = sled::Config::new().temporary(true);
+        let cache_size = 10;
+        let sweep_interval = Duration::from_millis(10000);
+        let network_timeout = Duration::from_secs(5);
+
+        let storage =
+            Arc::new(StorageService::open(&sled_config, cache_size, sweep_interval).unwrap());
         let network = Arc::new(SubstrateNetwork::new(network));
-        let ipfs = Ipfs::new(storage, network, Duration::from_secs(5));
+        let ipfs = Ipfs::new(storage, network, network_timeout);
         (ipfs, tmp)
     }
 
@@ -213,7 +219,7 @@ mod tests {
         env_logger::try_init().ok();
         let (store, _tmp) = create_store(vec![], false);
         let block = create_block(b"test_local_store");
-        store.insert(block.clone()).await.unwrap();
+        store.insert(&block).await.unwrap();
         let block2 = store.get(block.cid()).await.unwrap();
         assert_eq!(block.data(), block2.data());
     }
@@ -225,7 +231,7 @@ mod tests {
         let (store1, _tmp1) = create_store(vec![], false);
         let (store2, _tmp2) = create_store(vec![], false);
         let block = create_block(b"test_exchange_mdns");
-        store1.insert(block.clone()).await.unwrap();
+        store1.insert(&block).await.unwrap();
         let block2 = store2.get(block.cid()).await.unwrap();
         assert_eq!(block.data(), block2.data());
     }
@@ -238,12 +244,12 @@ mod tests {
         let (store2, _tmp2) = create_store(vec![], false);
         let block = create_block(b"test_received_want_before_insert");
 
-        let get_cid = block.cid().clone();
+        let get_cid = *block.cid();
         let get = task::spawn(async move { store2.get(&get_cid).await });
 
         task::sleep(Duration::from_millis(100)).await;
 
-        store1.insert(block.clone()).await.unwrap();
+        store1.insert(&block).await.unwrap();
 
         let block2 = get.await.unwrap();
         assert_eq!(block.data(), block2.data());
@@ -263,7 +269,7 @@ mod tests {
         let (store2, _tmp2) = create_store(bootstrap, false);
 
         let block = create_block(b"test_exchange_kad");
-        store1.insert(block.clone()).await.unwrap();
+        store1.insert(&block).await.unwrap();
         // wait for entry to propagate
         task::sleep(Duration::from_millis(1000)).await;
         let block2 = store2.get(block.cid()).await.unwrap();

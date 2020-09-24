@@ -5,7 +5,7 @@ use sunshine_client_utils::{Client, Node, Result};
 #[derive(Clone, Debug, Clap)]
 pub struct KeySetCommand {
     /// Overwrite existing keys.
-    #[clap(short = "f", long = "force")]
+    #[clap(short = 'f', long = "force")]
     pub force: bool,
 
     /// Suri.

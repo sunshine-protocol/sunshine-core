@@ -361,10 +361,7 @@ mod tests {
         let ipld_block =
             libipld::block::Block::encode(TreeCodec, BLAKE2B_256_TREE, &sealed_block.offchain)
                 .unwrap();
-        store.insert(ipld_block.clone()).await.unwrap();
-        if let Some(ancestor) = block.prev.as_ref() {
-            store.unpin(ancestor).await.unwrap();
-        }
+        store.insert(&ipld_block).await.unwrap();
 
         // retrive a block from ipfs.
         let ipld_block2 = store.get(ipld_block.cid()).await.unwrap();

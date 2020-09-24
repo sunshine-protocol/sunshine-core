@@ -81,7 +81,7 @@ impl frame_system::Trait for Runtime {
     type Call = Call;
     type Event = Event;
     type Version = Version;
-    type ModuleToIndex = ModuleToIndex;
+    type PalletInfo = PalletInfo;
 
     // Basic types
     type Hashing = Hasher;

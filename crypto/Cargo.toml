@@ -7,12 +7,12 @@ edition = "2018"
 [dependencies]
 aead = "=0.2.0"
 anyhow = "1.0.32"
-async-std = { version = "1.6.3", features = ["unstable"] }
+async-std = { version = "1.6.4", features = ["unstable"] }
 async-trait = "0.1.40"
 bip39 = { version = "1.0.0-rc1", features = ["rand"] }
 blake2-rfc = "0.2.18"
 curve25519-dalek = "3.0.0"
-ed25519-dalek = "1.0.0"
+ed25519-dalek = "1.0.1"
 generic-array = "0.14.4"
 hash256-std-hasher = "0.15.2"
 hash-db = "0.15.2"
@@ -21,7 +21,7 @@ rand = "0.7.3"
 schnorrkel = { version = "0.9.1", features = ["aead"] }
 secrecy = "0.7.0"
 sha2 = "0.9.1"
-sp-core = "2.0.0-rc6"
+sp-core = "2.0.0"
 strobe-rs = "0.5.4"
 substrate-subxt = "0.12.0"
 subtle = "2.3.0"
@@ -29,11 +29,11 @@ thiserror = "1.0.20"
 x25519-dalek = "1.1.0"
 zeroize = "1.1.1"
 
-sp-keyring = { version = "2.0.0-rc6", optional = true }
+sp-keyring = { version = "2.0.0", optional = true }
 
 [dev-dependencies]
-async-std = { version = "1.6.3", features = ["attributes"] }
-sp-keyring = "2.0.0-rc6"
+async-std = { version = "1.6.4", features = ["attributes"] }
+sp-keyring = "2.0.0"
 
 [features]
 mock = ["sp-keyring"]

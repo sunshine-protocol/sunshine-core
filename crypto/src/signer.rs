@@ -148,7 +148,7 @@ impl<'a, T: Runtime> substrate_subxt::Signer<T> for GenericSubxtSigner<'a, T> {
     fn sign(
         &self,
         extrinsic: SignedPayload<T>,
-    ) -> Pin<Box<dyn Future<Output = Result<UncheckedExtrinsic<T>, String>> + Send + Sync>> {
+    ) -> Pin<Box<dyn Future<Output = Result<UncheckedExtrinsic<T>, String>> + Send>> {
         let extrinsic = self.0.sign_extrinsic(extrinsic);
         Box::pin(async move { Ok(extrinsic) })
     }

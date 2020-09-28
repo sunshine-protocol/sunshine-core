@@ -97,8 +97,8 @@ macro_rules! gen_ffi {
                         $crate::log::error!("no info provided for that panic 😡");
                         println!("panic occurred but no info ...errr");
                     }
+                    $crate::log::error!("🔄 Recovered from the panic.");
                 }
-                $crate::log::error!("🔄 Recovered from the panic.");
             });
             1
         }
